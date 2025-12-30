@@ -6,10 +6,12 @@ import jakarta.persistence.Id;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @Setter
-public class User {
+public class AppUser  {
 
     @Id
     @GeneratedValue
@@ -23,9 +25,13 @@ public class User {
 
     private String surname;
 
-    private Boolean isVerified;
+    private Boolean isVerified = false;
 
-    private Boolean hasChangedPassword; // admin must change default password first time he logs in
+    private String activationToken;
+
+    private LocalDateTime activationTokenExpiry;
+
+    private Boolean hasChangedPassword = false; // admin must change default password first time he logs in
 
     private Role role;
 }
