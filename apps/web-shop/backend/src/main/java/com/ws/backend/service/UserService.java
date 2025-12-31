@@ -5,6 +5,7 @@ import com.ws.backend.model.AppUser;
 import com.ws.backend.model.Role;
 import com.ws.backend.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -15,51 +16,58 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final EmailSenderService emailSenderService;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
 
-    public UserService(UserRepository userRepository, EmailSenderService emailSenderService, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, EmailService emailService) {
         this.userRepository = userRepository;
-        this.emailSenderService = emailSenderService;
         this.passwordEncoder = passwordEncoder;
-    }
-
-    public AppUser registerUser(RegisterDTO request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("Email is already registered");
-        }
-
-        AppUser user = new AppUser();
-        user.setName(request.getName());
-        user.setSurname(request.getSurname());
-        user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(Role.USER);
-        user.setIsVerified(false);
-        user.setHasChangedPassword(false);
-
-        String token = UUID.randomUUID().toString();
-        user.setActivationToken(token);
-        user.setActivationTokenExpiry(LocalDateTime.now().plusHours(24));
-
-        String activationLink = "http://localhost:8080/auth/activate?token=" + token;
-        emailSenderService.sendActivationEmail(user.getEmail(), activationLink, "Activate account");
-
-        return userRepository.save(user);
+        this.emailService = emailService;
     }
 
     @Transactional
-    public String activateUser(String token) {
+    public void registerUser(RegisterDTO registerDTO) {
+
+        if (userRepository.existsByEmail(registerDTO.getEmail())) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+
+        String activationToken = UUID.randomUUID().toString();
+
+        String hashedPassword = passwordEncoder.encode(registerDTO.getPassword());
+
+        AppUser appUser = new AppUser();
+        appUser.setEmail(registerDTO.getEmail());
+        appUser.setPassword(hashedPassword);
+        appUser.setName(registerDTO.getName());
+        appUser.setSurname(registerDTO.getSurname());
+        appUser.setIsVerified(false);
+        appUser.setActivationToken(activationToken);
+        appUser.setActivationTokenExpiry(LocalDateTime.now().plusHours(24));
+        appUser.setRole(Role.USER);
+
+        try {
+            userRepository.save(appUser);
+
+            emailService.sendActivationEmail(registerDTO.getEmail(), activationToken);
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Email already exists", e);
+        }
+    }
+
+    @Transactional
+    public void activateUser(String token) {
         AppUser user = userRepository.findByActivationToken(token)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid activation token"));
 
-        if (user.getIsVerified()) {
-            return "User has already been activated";
+        if (user.getActivationTokenExpiry() == null ||
+                user.getActivationTokenExpiry().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Activation token has expired");
         }
 
-        if (user.getActivationTokenExpiry().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Activation token has expired");
+        if (user.getIsVerified()) {
+            throw new IllegalArgumentException("Account is already activated");
         }
 
         user.setIsVerified(true);
@@ -67,7 +75,6 @@ public class UserService {
         user.setActivationTokenExpiry(null);
 
         userRepository.save(user);
-
-        return "User has been activated successfully";
     }
+
 }
