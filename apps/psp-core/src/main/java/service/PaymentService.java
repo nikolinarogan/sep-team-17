@@ -110,4 +110,32 @@ public class PaymentService {
                 availableMethods
         );
     }
+    /**
+     * Finalizacija transakcije
+     */
+    @Transactional
+    public void finaliseTransaction(dto.PaymentCallbackDTO callback) {
+        // 1. Pronađi transakciju u bazi
+        PaymentTransaction tx = transactionRepository.findByUuid(callback.getPaymentId())
+                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena."));
+
+        // 2. Parsiraj i postavi novi status
+        try {
+            TransactionStatus newStatus = TransactionStatus.valueOf(callback.getStatus());
+            tx.setStatus(newStatus);
+        } catch (Exception e) {
+            // Ako stigne nepoznat status, stavi ERROR
+            tx.setStatus(TransactionStatus.ERROR);
+        }
+
+        // 3. Sačuvaj bitne podatke iz banke/servisa (STAN, Global ID)
+        tx.setExternalTransactionId(callback.getExternalTransactionId());
+        tx.setExecutionId(callback.getExecutionId());
+        tx.setServiceTimestamp(callback.getServiceTimestamp());
+
+        // 4. Snimi promjene
+        transactionRepository.save(tx);
+
+        System.out.println("Transakcija " + tx.getUuid() + " finalizovana sa statusom: " + tx.getStatus());
+    }
 }
