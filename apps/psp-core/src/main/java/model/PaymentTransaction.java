@@ -56,6 +56,17 @@ public class PaymentTransaction {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "external_transaction_id")
+    private String externalTransactionId;
+
+    // Čuva STAN (banka)
+    @Column(name = "execution_id")
+    private String executionId;
+
+    // Čuva ACQUIRER_TIMESTAMP
+    @Column(name = "service_timestamp")
+    private LocalDateTime serviceTimestamp;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

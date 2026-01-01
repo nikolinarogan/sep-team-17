@@ -46,4 +46,14 @@ public class PaymentController {
         CheckoutResponseDTO data = paymentService.getCheckoutData(uuid);
         return ResponseEntity.ok(data);
     }
+
+    /**
+     * CALLBACK ENDPOINT
+     * Ovdje gađaju Bank Service i QR Service kad završe posao
+     */
+    @PutMapping("/status")
+    public ResponseEntity<Void> updateStatus(@RequestBody dto.PaymentCallbackDTO callback) {
+        paymentService.finaliseTransaction(callback);
+        return ResponseEntity.ok().build();
+    }
 }
