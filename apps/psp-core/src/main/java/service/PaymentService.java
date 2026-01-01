@@ -1,6 +1,7 @@
 package service;
 
 import dto.CheckoutResponseDTO;
+import dto.PaymentMethodDTO;
 import dto.PaymentRequestDTO;
 import dto.PaymentResponseDTO;
 import model.*;
@@ -99,8 +100,11 @@ public class PaymentService {
             throw new RuntimeException("Prodavac nema aktivnih metoda plaćanja!");
         }
 
-        List<String> availableMethods = subscriptions.stream()
-                .map(sub -> sub.getPaymentMethod().getName())
+        List<PaymentMethodDTO> availableMethods = subscriptions.stream()
+                .map(sub -> new PaymentMethodDTO(
+                        sub.getPaymentMethod().getName(),
+                        sub.getPaymentMethod().getServiceUrl() // Uzimamo URL iz baze
+                ))
                 .collect(Collectors.toList());
 
         return new CheckoutResponseDTO(
