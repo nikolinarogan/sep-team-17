@@ -12,5 +12,5 @@ public class CheckoutResponseDTO {
     private BigDecimal amount;
     private String currency;
     private String merchantId;
-    private List<String> availableMethods;
+    private List<PaymentMethodDTO> availableMethods;
 }
