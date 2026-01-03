@@ -53,7 +53,7 @@ public class VehicleService {
         Vehicle vehicle = getVehicleById(id);
         vehicle.setModel(updatedVehicle.getModel());
         vehicle.setPricePerDay(updatedVehicle.getPricePerDay());
-        vehicle.setIsAvailable(updatedVehicle.getIsAvailable());
+        vehicle.setAvailable(updatedVehicle.getAvailable());
 
         if (imageFile != null && !imageFile.isEmpty()) {
             Map uploadResult = cloudinary.uploader().upload(imageFile.getBytes(),
