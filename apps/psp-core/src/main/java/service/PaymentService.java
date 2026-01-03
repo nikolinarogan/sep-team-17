@@ -5,6 +5,7 @@ import dto.PaymentMethodDTO;
 import dto.PaymentRequestDTO;
 import dto.PaymentResponseDTO;
 import model.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import repository.MerchantRepository;
@@ -23,16 +24,19 @@ public class PaymentService {
     private final PaymentTransactionRepository transactionRepository;
     private final MerchantSubscriptionRepository subscriptionRepository;
     private final PspConfigRepository pspConfigRepository;
+    private final PasswordEncoder passwordEncoder;
 
     // Constructor Injection
     public PaymentService(MerchantRepository merchantRepository,
                           PaymentTransactionRepository transactionRepository,
                           MerchantSubscriptionRepository subscriptionRepository,
-                          PspConfigRepository pspConfigRepository) {
+                          PspConfigRepository pspConfigRepository,
+                          PasswordEncoder passwordEncoder) {
         this.merchantRepository = merchantRepository;
         this.transactionRepository = transactionRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.pspConfigRepository = pspConfigRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
@@ -46,7 +50,7 @@ public class PaymentService {
                 .orElseThrow(() -> new RuntimeException("Prodavac sa ID-jem " + request.getMerchantId() + " ne postoji."));
 
         // 2. Provjera lozinke
-        if (!merchant.getMerchantPassword().equals(request.getMerchantPassword())) {
+        if (!passwordEncoder.matches(request.getMerchantPassword(), merchant.getMerchantPassword())) {
             throw new RuntimeException("Pogrešna lozinka za prodavca.");
         }
 
@@ -94,7 +98,7 @@ public class PaymentService {
             throw new RuntimeException("Ova transakcija je već obrađena ili nije validna.");
         }
 
-        List<MerchantSubscription> subscriptions = subscriptionRepository.findByMerchantId(tx.getMerchantId());
+        List<MerchantSubscription> subscriptions = subscriptionRepository.findByMerchantMerchantId(tx.getMerchantId());
 
         if (subscriptions.isEmpty()) {
             throw new RuntimeException("Prodavac nema aktivnih metoda plaćanja!");
