@@ -1,15 +1,4 @@
 <div class="landing-container">
-  <header class="header">
-    <div class="header-content">
-      <h1 class="logo">Web Shop</h1>
-      <nav class="nav">
-        <button class="btn-logout" (click)="logout()" *ngIf="isAuthenticated()">
-          Logout
-        </button>
-      </nav>
-    </div>
-  </header>
-
   <main class="main-content">
     <div class="welcome-section">
       <h2>Welcome!</h2>
@@ -21,7 +10,8 @@
       </div>
 
       <div class="actions">
-        <a class="btn-primary" routerLink="/register">Go to Register</a>
+        <a class="btn-primary" routerLink="/vehicles" *ngIf="isAdmin()">Manage Vehicles</a>
+        <a class="btn-secondary" routerLink="/register">Go to Register</a>
         <a class="btn-secondary" routerLink="/login">Go to Login</a>
       </div>
     </div>

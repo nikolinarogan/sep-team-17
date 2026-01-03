@@ -4,13 +4,13 @@ import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../app/services/auth.service';
 
 @Component({
-  selector: 'app-landing',
+  selector: 'app-navbar',
   standalone: true,
   imports: [CommonModule, RouterModule],
-  templateUrl: 'landing.html',
-  styleUrl: 'landing.css'
+  templateUrl: 'navbar.html',
+  styleUrl: 'navbar.css'
 })
-export class LandingComponent {
+export class NavbarComponent {
   constructor(
     public authService: AuthService,
     private router: Router
@@ -22,6 +22,11 @@ export class LandingComponent {
 
   isAdmin(): boolean {
     return this.authService.isAdmin();
+  }
+
+  logout() {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 }
 
