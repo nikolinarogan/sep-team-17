@@ -4,10 +4,10 @@ import com.ws.backend.dto.ChangePasswordDTO;
 import com.ws.backend.dto.LoginDTO;
 import com.ws.backend.dto.LoginResponseDTO;
 import com.ws.backend.dto.RegisterDTO;
-import com.ws.backend.jwt.JwtService;
 import com.ws.backend.model.AppUser;
 import com.ws.backend.model.Role;
 import com.ws.backend.service.AuthService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,7 +23,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterDTO request) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterDTO request) {
         try {
             AppUser savedUser = userService.registerUser(request);
             return ResponseEntity.ok("User registered with ID: " + savedUser.getId());
