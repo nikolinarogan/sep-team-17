@@ -1,0 +1,45 @@
+<div class="vehicles-container">
+  <div class="vehicles-header">
+    <h1>Vehicle Management</h1>
+    <button class="btn-primary" (click)="addNewVehicle()">Add New Vehicle</button>
+  </div>
+
+  <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+  <div *ngIf="isLoading" class="loading">
+    <p>Loading vehicles...</p>
+  </div>
+
+  <div *ngIf="!isLoading && vehicles.length === 0 && !errorMessage" class="no-vehicles">
+    <p>No vehicles found. Click "Add New Vehicle" to get started.</p>
+  </div>
+
+  <div *ngIf="!isLoading && vehicles.length === 0 && errorMessage" class="no-vehicles">
+    <p>Error: {{ errorMessage }}</p>
+  </div>
+
+  <div class="vehicles-grid" *ngIf="!isLoading && vehicles.length > 0">
+    <div class="vehicle-card" *ngFor="let vehicle of vehicles">
+      <div class="vehicle-image" *ngIf="vehicle.imageUrl">
+        <img [src]="vehicle.imageUrl" [alt]="vehicle.model" />
+      </div>
+      <div class="vehicle-image placeholder" *ngIf="!vehicle.imageUrl">
+        <span>No Image</span>
+      </div>
+      <div class="vehicle-info">
+        <h3>{{ vehicle.model }}</h3>
+        <p class="price">${{ vehicle.pricePerDay }}/day</p>
+        <p class="availability" 
+           [class.available]="getAvailability(vehicle)" 
+           [class.unavailable]="!getAvailability(vehicle)">
+          {{ getAvailability(vehicle) ? 'Available' : 'Not Available' }}
+        </p>
+      </div>
+      <div class="vehicle-actions">
+        <button class="btn-edit" (click)="editVehicle(vehicle.id!)">Edit</button>
+        <button class="btn-delete" (click)="deleteVehicle(vehicle.id!)">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+

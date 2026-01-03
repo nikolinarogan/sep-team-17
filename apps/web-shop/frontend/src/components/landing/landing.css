@@ -3,52 +3,6 @@
   background: #f8fafc;
 }
 
-.header {
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 20px 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo {
-  color: #2563eb;
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0;
-}
-
-.nav {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-}
-
-.btn-logout {
-  padding: 8px 16px;
-  background: white;
-  color: #2563eb;
-  border: 1px solid #2563eb;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-logout:hover {
-  background: #2563eb;
-  color: white;
-}
-
 .main-content {
   max-width: 1200px;
   margin: 0 auto;

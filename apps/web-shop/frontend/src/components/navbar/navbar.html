@@ -1,0 +1,27 @@
+<nav class="navbar">
+  <div class="navbar-container">
+    <div class="navbar-brand">
+      <a routerLink="/home" *ngIf="isAuthenticated()">Web Shop</a>
+      <a routerLink="/register" *ngIf="!isAuthenticated()">Web Shop</a>
+    </div>
+
+    <div class="navbar-menu">
+      <!-- Authenticated User Links -->
+      <div class="navbar-links" *ngIf="isAuthenticated()">
+        <a routerLink="/home" routerLinkActive="active">Home</a>
+        
+        <!-- Admin Only Links -->
+        <a routerLink="/vehicles" routerLinkActive="active" *ngIf="isAdmin()">Manage Vehicles</a>
+        
+        <button class="btn-logout" (click)="logout()">Logout</button>
+      </div>
+
+      <!-- Guest Links -->
+      <div class="navbar-links" *ngIf="!isAuthenticated()">
+        <a routerLink="/login" routerLinkActive="active">Login</a>
+        <a routerLink="/register" routerLinkActive="active">Register</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
