@@ -1,0 +1,87 @@
+<div class="register-container">
+  <div class="register-card">
+    <h2 *ngIf="!successMessage">Create Account</h2>
+    <h2 *ngIf="successMessage" style="text-align: center; margin-bottom: 20px;">Registration Successful!</h2>
+    
+    <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" *ngIf="!successMessage">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input 
+          type="text" 
+          id="name" 
+          formControlName="name"
+          class="form-control"
+          [class.error]="registerForm.get('name')?.invalid && registerForm.get('name')?.touched">
+        <div class="error-message" *ngIf="registerForm.get('name')?.invalid && registerForm.get('name')?.touched">
+          Name is required
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="surname">Surname</label>
+        <input 
+          type="text" 
+          id="surname" 
+          formControlName="surname"
+          class="form-control"
+          [class.error]="registerForm.get('surname')?.invalid && registerForm.get('surname')?.touched">
+        <div class="error-message" *ngIf="registerForm.get('surname')?.invalid && registerForm.get('surname')?.touched">
+          Surname is required
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input 
+          type="email" 
+          id="email" 
+          formControlName="email"
+          class="form-control"
+          [class.error]="registerForm.get('email')?.invalid && registerForm.get('email')?.touched">
+        <div class="error-message" *ngIf="registerForm.get('email')?.invalid && registerForm.get('email')?.touched">
+          <span *ngIf="registerForm.get('email')?.errors?.['required']">Email is required</span>
+          <span *ngIf="registerForm.get('email')?.errors?.['email']">Please enter a valid email</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input 
+          type="password" 
+          id="password" 
+          formControlName="password"
+          class="form-control"
+          [class.error]="registerForm.get('password')?.invalid && registerForm.get('password')?.touched">
+        <div class="password-hint" *ngIf="registerForm.get('password')?.value && registerForm.get('password')?.value.length > 0 && registerForm.get('password')?.value.length < 8">
+           Password must be at least 8 characters long (currently {{ registerForm.get('password')?.value.length }})
+        </div>
+        <div class="error-message" *ngIf="registerForm.get('password')?.invalid && registerForm.get('password')?.touched">
+          <span *ngIf="registerForm.get('password')?.errors?.['required']">Password is required</span>
+          <span *ngIf="registerForm.get('password')?.errors?.['minlength']">⚠️ Password must be at least 8 characters long</span>
+        </div>
+      </div>
+
+      <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+      <button 
+        type="submit" 
+        class="btn-primary"
+        [disabled]="registerForm.invalid || isLoading">
+        {{ isLoading ? 'Registering...' : 'Register' }}
+      </button>
+    </form>
+
+    <div class="success-message" *ngIf="successMessage">
+      <div class="success-icon">✓</div>
+      <div class="success-content">
+        <strong>Verification Email Sent!</strong>
+        <p>A verification email has been sent to your email address. Please check your inbox and click the activation link to activate your account.</p>
+        <p class="redirect-info">You will be redirected to the login page in a few seconds...</p>
+      </div>
+    </div>
+
+    <div class="login-link" *ngIf="!successMessage">
+      <p>Already have an account? <a routerLink="/login">Login here</a></p>
+    </div>
+  </div>
+</div>

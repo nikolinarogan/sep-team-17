@@ -29,6 +29,7 @@ public class AuthService {
         this.jwtService = jwtService;
     }
 
+    @Transactional
     public AppUser registerUser(RegisterDTO request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Email is already registered");
@@ -47,10 +48,12 @@ public class AuthService {
         user.setActivationToken(token);
         user.setActivationTokenExpiry(LocalDateTime.now().plusHours(24));
 
+        AppUser savedUser = userRepository.save(user);
+        
         String activationLink = "http://localhost:8080/auth/activate?token=" + token;
-        emailSender.sendActivationEmail(user.getEmail(), activationLink, "Activate account");
+        emailSender.sendActivationEmail(savedUser.getEmail(), activationLink, "Activate account");
 
-        return userRepository.save(user);
+        return savedUser;
     }
 
     @Transactional
