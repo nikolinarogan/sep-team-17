@@ -1,47 +1,86 @@
 package com.ws.backend.controller;
 
+import com.ws.backend.dto.ChangePasswordDTO;
+import com.ws.backend.dto.LoginDTO;
+import com.ws.backend.dto.LoginResponseDTO;
 import com.ws.backend.dto.RegisterDTO;
-import com.ws.backend.service.UserService;
+import com.ws.backend.jwt.JwtService;
+import com.ws.backend.model.AppUser;
+import com.ws.backend.model.Role;
+import com.ws.backend.service.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 public class AuthController {
 
-    private final UserService userService;
+    private final AuthService userService;
 
-    public AuthController(UserService userService) {
+    public AuthController(AuthService userService) {
         this.userService = userService;
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register( @RequestBody RegisterDTO registerDTO) {
+    public ResponseEntity<?> register(@RequestBody RegisterDTO request) {
         try {
-            userService.registerUser(registerDTO);
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body("Registration successful. Please check your email to activate your account.");
+            AppUser savedUser = userService.registerUser(request);
+            return ResponseEntity.ok("User registered with ID: " + savedUser.getId());
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            return ResponseEntity
+                    .badRequest()
                     .body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Registration failed. Please try again later.");
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while registering the user");
         }
     }
 
     @GetMapping("/activate")
-    public ResponseEntity<?> activate(@RequestParam String token) {
+    public ResponseEntity<String> activateUser(@RequestParam("token") String token) {
         try {
-            userService.activateUser(token);
-            return ResponseEntity.ok("Account activated successfully!");
+            String result = userService.activateUser(token);
+            return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginDTO request) {
+
+        AppUser user = userService.loginCheckCredentials(request.getEmail(), request.getPassword());
+
+        if (user == null) {
+            return ResponseEntity.badRequest()
+                    .body(new LoginResponseDTO("Invalid email or password", null, false));
+        }
+
+        // First-time admin login
+        if (user.getRole() == Role.ADMIN && !user.getHasChangedPassword()) {
+            return ResponseEntity.ok(
+                    new LoginResponseDTO("Admin must change password first", null, true)
+            );
+        }
+
+
+        String token = userService.generateToken(user);
+
+        return ResponseEntity.ok(
+                new LoginResponseDTO("Login successful", token, false)
+        );
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO dto) {
+        try {
+            AppUser updatedUser = userService.changePassword(dto);
+            return ResponseEntity.ok("Password changed successfully for " + updatedUser.getEmail());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Activation failed. Please try again later.");
+            return ResponseEntity.internalServerError().body("Error changing password");
         }
     }
 }

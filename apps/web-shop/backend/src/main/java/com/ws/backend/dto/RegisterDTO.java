@@ -24,19 +24,35 @@ public class RegisterDTO {
     @Size(min = 8, message = "Password must be at least 8 characters")
     private String password;
 
-    public String getName() {
-        return name;
+    public @NotBlank(message = "Password is required") @Size(min = 8, message = "Password must be at least 8 characters") String getPassword() {
+        return password;
     }
 
-    public String getSurname() {
-        return surname;
+    public void setPassword(@NotBlank(message = "Password is required") @Size(min = 8, message = "Password must be at least 8 characters") String password) {
+        this.password = password;
     }
 
-    public String getEmail() {
+    public @NotBlank(message = "Email is required") @Email(message = "Email should be valid") String getEmail() {
         return email;
     }
 
-    public String getPassword() {
-        return password;
+    public void setEmail(@NotBlank(message = "Email is required") @Email(message = "Email should be valid") String email) {
+        this.email = email;
+    }
+
+    public @NotBlank(message = "Surname is required") String getSurname() {
+        return surname;
+    }
+
+    public void setSurname(@NotBlank(message = "Surname is required") String surname) {
+        this.surname = surname;
+    }
+
+    public @NotBlank(message = "Name is required") String getName() {
+        return name;
+    }
+
+    public void setName(@NotBlank(message = "Name is required") String name) {
+        this.name = name;
     }
 }

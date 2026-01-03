@@ -1,9 +1,8 @@
 package com.ws.backend.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
@@ -11,29 +10,46 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @Setter
+@NoArgsConstructor
 public class AppUser  {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(nullable = false)
     private String password;
 
+    @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false)
     private String surname;
 
+    @Column(nullable = false)
     private Boolean isVerified = false;
 
     private String activationToken;
 
     private LocalDateTime activationTokenExpiry;
 
+    @Column(nullable = false)
     private Boolean hasChangedPassword = false; // admin must change default password first time he logs in
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Role role;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
 
     public String getEmail() {
         return email;
@@ -67,12 +83,12 @@ public class AppUser  {
         this.surname = surname;
     }
 
-    public Boolean getIsVerified() {
+    public Boolean getVerified() {
         return isVerified;
     }
 
-    public void setIsVerified(Boolean isVerified) {
-        this.isVerified = isVerified;
+    public void setVerified(Boolean verified) {
+        isVerified = verified;
     }
 
     public String getActivationToken() {
@@ -89,6 +105,14 @@ public class AppUser  {
 
     public void setActivationTokenExpiry(LocalDateTime activationTokenExpiry) {
         this.activationTokenExpiry = activationTokenExpiry;
+    }
+
+    public Boolean getHasChangedPassword() {
+        return hasChangedPassword;
+    }
+
+    public void setHasChangedPassword(Boolean hasChangedPassword) {
+        this.hasChangedPassword = hasChangedPassword;
     }
 
     public Role getRole() {
