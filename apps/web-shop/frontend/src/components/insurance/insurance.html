@@ -1,0 +1,39 @@
+<div class="insurance-container">
+  <div class="insurance-header">
+    <h1>Insurance Management</h1>
+    <button class="btn-primary" (click)="addNewInsurance()">Add New Insurance</button>
+  </div>
+
+  <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+  <div *ngIf="isLoading" class="loading">
+    <p>Loading insurances...</p>
+  </div>
+
+  <div *ngIf="!isLoading && insurances.length === 0 && !errorMessage" class="no-insurance">
+    <p>No insurances found. Click "Add New Insurance" to get started.</p>
+  </div>
+
+  <div *ngIf="!isLoading && insurances.length === 0 && errorMessage" class="no-insurance">
+    <p>Error: {{ errorMessage }}</p>
+  </div>
+
+  <div class="insurance-grid" *ngIf="!isLoading && insurances.length > 0">
+    <div class="insurance-card" *ngFor="let insurance of insurances">
+      <div class="insurance-info">
+        <h3>{{ getInsuranceTypeLabel(insurance.type) }}</h3>
+        <p class="price">${{ insurance.price }}</p>
+        <p class="availability" 
+           [class.available]="getAvailability(insurance)" 
+           [class.unavailable]="!getAvailability(insurance)">
+          {{ getAvailability(insurance) ? 'Available' : 'Not Available' }}
+        </p>
+      </div>
+      <div class="insurance-actions">
+        <button class="btn-edit" (click)="editInsurance(insurance.id!)">Edit</button>
+        <button class="btn-delete" (click)="deleteInsurance(insurance.id!)">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+

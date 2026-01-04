@@ -1,0 +1,70 @@
+<div class="equipment-form-container">
+  <div class="equipment-form-card">
+    <h2>{{ isEditMode ? 'Edit Equipment' : 'Add New Equipment' }}</h2>
+    
+    <form [formGroup]="equipmentForm" (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="equipmentType">Equipment Type</label>
+        <select 
+          id="equipmentType" 
+          formControlName="equipmentType"
+          class="form-control"
+          [class.error]="equipmentForm.get('equipmentType')?.invalid && equipmentForm.get('equipmentType')?.touched">
+          <option value="">Select Equipment Type</option>
+          <option *ngFor="let type of equipmentTypes" [value]="type">
+            {{ getEquipmentTypeLabel(type) }}
+          </option>
+        </select>
+        <div class="error-message" *ngIf="equipmentForm.get('equipmentType')?.invalid && equipmentForm.get('equipmentType')?.touched">
+          Equipment type is required
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="pricePerDay">Price Per Day ($)</label>
+        <input 
+          type="number" 
+          id="pricePerDay" 
+          formControlName="pricePerDay"
+          step="0.01"
+          min="0"
+          class="form-control"
+          [class.error]="equipmentForm.get('pricePerDay')?.invalid && equipmentForm.get('pricePerDay')?.touched">
+        <div class="error-message" *ngIf="equipmentForm.get('pricePerDay')?.invalid && equipmentForm.get('pricePerDay')?.touched">
+          <span *ngIf="equipmentForm.get('pricePerDay')?.errors?.['required']">Price is required</span>
+          <span *ngIf="equipmentForm.get('pricePerDay')?.errors?.['min']">Price must be greater than 0</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="isAvailable">Availability</label>
+        <select 
+          id="isAvailable" 
+          formControlName="isAvailable"
+          class="form-control">
+          <option [value]="true">Available</option>
+          <option [value]="false">Not Available</option>
+        </select>
+      </div>
+
+      <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
+      <div class="success-message" *ngIf="successMessage">{{ successMessage }}</div>
+
+      <div class="form-actions">
+        <button 
+          type="submit" 
+          class="btn-primary"
+          [disabled]="equipmentForm.invalid || isLoading">
+          {{ isLoading ? 'Saving...' : (isEditMode ? 'Update Equipment' : 'Create Equipment') }}
+        </button>
+        <button 
+          type="button" 
+          class="btn-secondary"
+          (click)="cancel()">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+

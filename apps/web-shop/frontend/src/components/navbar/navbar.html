@@ -12,6 +12,8 @@
         
         <!-- Admin Only Links -->
         <a routerLink="/vehicles" routerLinkActive="active" *ngIf="isAdmin()">Manage Vehicles</a>
+        <a routerLink="/equipment" routerLinkActive="active" *ngIf="isAdmin()">Manage Equipment</a>
+        <a routerLink="/insurance" routerLinkActive="active" *ngIf="isAdmin()">Manage Insurance</a>
         
         <button class="btn-logout" (click)="logout()">Logout</button>
       </div>
