@@ -1,0 +1,54 @@
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      
+      <div *ngIf="isLoading" class="text-center p-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Učitavanje detalja plaćanja...</p>
+      </div>
+
+      <div *ngIf="errorMessage" class="alert alert-danger text-center">
+        <h4>Greška</h4>
+        <p>{{ errorMessage }}</p>
+      </div>
+
+      <div *ngIf="checkoutData" class="card shadow-lg">
+        <div class="card-header bg-primary text-white text-center">
+          <h3>Sigurno plaćanje</h3>
+        </div>
+        
+        <div class="card-body p-4">
+          <div class="text-center mb-4">
+            <h5 class="text-muted">Iznos za uplatu:</h5>
+            <h1 class="display-4 fw-bold text-success">
+              {{ checkoutData.amount }} {{ checkoutData.currency }}
+            </h1>
+            <p class="text-muted small">Merchant ID: {{ checkoutData.merchantId }}</p>
+          </div>
+
+          <hr>
+
+          <h5 class="mb-3 text-center">Izaberite metod plaćanja:</h5>
+          
+          <div class="d-grid gap-3">
+            <button *ngFor="let method of checkoutData.availableMethods" 
+                    class="btn btn-outline-primary btn-lg d-flex justify-content-between align-items-center"
+                    (click)="selectMethod(method)">
+              <span>
+                <i class="bi bi-credit-card me-2"></i> {{ method.name }}
+              </span>
+              <span class="badge bg-secondary">Preusmjeravanje</span>
+            </button>
+          </div>
+
+        </div>
+        <div class="card-footer text-muted text-center small">
+          PSP System &copy; 2026 Secured by HTTPS
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

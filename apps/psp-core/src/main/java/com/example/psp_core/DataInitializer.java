@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import repository.*;
 import tools.jackson.databind.ObjectMapper;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,6 +21,7 @@ public class DataInitializer implements CommandLineRunner {
     private final PspConfigRepository pspConfigRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
     public DataInitializer(AdminRepository adminRepository,
                            PaymentMethodRepository paymentMethodRepository,
@@ -27,7 +29,8 @@ public class DataInitializer implements CommandLineRunner {
                            MerchantSubscriptionRepository subscriptionRepository,
                            PspConfigRepository pspConfigRepository,
                            PasswordEncoder passwordEncoder,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           PaymentTransactionRepository paymentTransactionRepository) {
         this.adminRepository = adminRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.merchantRepository = merchantRepository;
@@ -35,6 +38,7 @@ public class DataInitializer implements CommandLineRunner {
         this.pspConfigRepository = pspConfigRepository;
         this.passwordEncoder = passwordEncoder;
         this.objectMapper = objectMapper;
+        this.paymentTransactionRepository = paymentTransactionRepository;
     }
 
     @Override
@@ -94,6 +98,27 @@ public class DataInitializer implements CommandLineRunner {
             addSubscription(m, "QR", qrCreds);
 
             System.out.println("✅ PRETPLATE KREIRANE (Shop ima CARD i QR)");
+        }
+        if (paymentTransactionRepository.findByUuid("test-transakcija-123").isEmpty()) {
+
+            PaymentTransaction t = new PaymentTransaction();
+
+            t.setMerchantId("shop_123");
+
+            t.setMerchantOrderId("narudzbina-001");
+            t.setAmount(new BigDecimal("150.00"));
+            t.setCurrency("EUR");
+
+            t.setStatus(TransactionStatus.CREATED);
+
+            t.setUuid("test-transakcija-123");
+
+            t.setSuccessUrl("http://localhost:4200/success");
+            t.setFailedUrl("http://localhost:4200/failed");
+            t.setErrorUrl("http://localhost:4200/error");
+
+            paymentTransactionRepository.save(t);
+            System.out.println("✅ TEST TRANSAKCIJA KREIRANA: UUID = test-transakcija-123");
         }
     }
 

@@ -116,4 +116,40 @@ public class MerchantService {
         // Nazad vraćamo "sirovu" lozinku da bi admin mogao da je kopira i pošalje klijentu
         return new MerchantCredentialsDTO(m.getMerchantId(), rawPassword);
     }
+
+    public List<Merchant> findAll() {
+        return merchantRepository.findAll();
+    }
+    @Transactional
+    public void updateServicesByAdmin(String merchantId, List<MerchantConfigDTO> configs) {
+        Merchant merchant = merchantRepository.findByMerchantId(merchantId)
+                .orElseThrow(() -> new RuntimeException("Prodavac ne postoji: " + merchantId));
+
+        for (MerchantConfigDTO config : configs) {
+            PaymentMethod method = paymentMethodRepository.findByName(config.getMethodName())
+                    .orElseThrow(() -> new RuntimeException("Nepoznat metod plaćanja: " + config.getMethodName()));
+
+            String credentialsJson;
+            try {
+                credentialsJson = objectMapper.writeValueAsString(config.getCredentials());
+            } catch (Exception e) {
+                throw new RuntimeException("Greška pri obradi kredencijala");
+            }
+
+            Optional<MerchantSubscription> existingSub = subscriptionRepository
+                    .findByMerchantMerchantIdAndPaymentMethodName(merchantId, config.getMethodName());
+
+            if (existingSub.isPresent()) {
+                MerchantSubscription sub = existingSub.get();
+                sub.setCredentialsJson(credentialsJson);
+                subscriptionRepository.save(sub);
+            } else {
+                MerchantSubscription newSub = new MerchantSubscription();
+                newSub.setMerchant(merchant);
+                newSub.setPaymentMethod(method);
+                newSub.setCredentialsJson(credentialsJson);
+                subscriptionRepository.save(newSub);
+            }
+        }
+    }
 }

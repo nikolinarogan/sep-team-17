@@ -3,6 +3,7 @@ package controller;
 import dto.MerchantConfigDTO;
 import dto.MerchantCreateDTO;
 import dto.MerchantCredentialsDTO;
+import repository.MerchantSubscriptionRepository;
 import service.MerchantService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,9 +16,12 @@ import java.util.List;
 public class MerchantController {
 
     private final MerchantService merchantService;
+    private final MerchantSubscriptionRepository subscriptionRepository;
 
-    public MerchantController(MerchantService merchantService) {
+    public MerchantController(MerchantService merchantService,
+                              MerchantSubscriptionRepository subscriptionRepository) {
         this.merchantService = merchantService;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     /**
@@ -55,5 +59,15 @@ public class MerchantController {
     public ResponseEntity<MerchantCredentialsDTO> createMerchant(@RequestBody MerchantCreateDTO request) {
         MerchantCredentialsDTO credentials = merchantService.createMerchant(request);
         return ResponseEntity.ok(credentials);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<model.Merchant>> getAllMerchants() {
+        return ResponseEntity.ok(merchantService.findAll());
+    }
+
+    @GetMapping("/{merchantId}/subscriptions")
+    public ResponseEntity<List<model.MerchantSubscription>> getSubscriptions(@PathVariable String merchantId) {
+        return ResponseEntity.ok(subscriptionRepository.findByMerchantMerchantId(merchantId));
     }
 }
