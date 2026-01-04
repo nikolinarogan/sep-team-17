@@ -56,4 +56,9 @@ public class MerchantController {
         MerchantCredentialsDTO credentials = merchantService.createMerchant(request);
         return ResponseEntity.ok(credentials);
     }
+
+    @GetMapping
+    public ResponseEntity<List<model.Merchant>> getAllMerchants() {
+        return ResponseEntity.ok(merchantService.findAll());
+    }
 }

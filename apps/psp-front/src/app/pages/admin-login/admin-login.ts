@@ -30,8 +30,7 @@ export class AdminLogin {
       next: (response: string) => {
         console.log('Odgovor:', response);
         if (response === 'Uspešna prijava.') {
-           alert('USPEH! Admin je ulogovan.');
-           //  this.router.navigate(['/admin/dashboard']);
+           this.router.navigate(['/admin/dashboard']);
         }
         this.isLoading = false;
       },

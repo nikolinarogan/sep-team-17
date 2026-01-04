@@ -116,4 +116,8 @@ public class MerchantService {
         // Nazad vraćamo "sirovu" lozinku da bi admin mogao da je kopira i pošalje klijentu
         return new MerchantCredentialsDTO(m.getMerchantId(), rawPassword);
     }
+
+    public List<Merchant> findAll() {
+        return merchantRepository.findAll();
+    }
 }
