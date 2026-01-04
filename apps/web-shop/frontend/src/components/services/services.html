@@ -1,0 +1,70 @@
+<div class="services-container">
+  <div class="services-header">
+    <h1>Available Services</h1>
+    <p class="subtitle">Browse our available vehicles, equipment, and insurance options</p>
+  </div>
+
+  <div *ngIf="isLoading" class="loading">
+    <p>Loading services...</p>
+  </div>
+
+  <div *ngIf="!isLoading" class="services-content">
+    <!-- Vehicles Section -->
+    <section class="service-section">
+      <h2 class="section-title">Vehicles</h2>
+      <div *ngIf="vehicles.length === 0" class="no-items">
+        <p>No available vehicles at the moment.</p>
+      </div>
+      <div class="items-grid" *ngIf="vehicles.length > 0">
+        <div class="item-card" *ngFor="let vehicle of vehicles">
+          <div class="item-image" *ngIf="vehicle.imageUrl">
+            <img [src]="vehicle.imageUrl" [alt]="vehicle.model" />
+          </div>
+          <div class="item-image placeholder" *ngIf="!vehicle.imageUrl">
+            <span>No Image</span>
+          </div>
+          <div class="item-info">
+            <h3>{{ vehicle.model }}</h3>
+            <p class="price">${{ vehicle.pricePerDay }}/day</p>
+            <span class="badge available">Available</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Equipment Section -->
+    <section class="service-section">
+      <h2 class="section-title">Equipment</h2>
+      <div *ngIf="equipment.length === 0" class="no-items">
+        <p>No available equipment at the moment.</p>
+      </div>
+      <div class="items-grid" *ngIf="equipment.length > 0">
+        <div class="item-card" *ngFor="let item of equipment">
+          <div class="item-info">
+            <h3>{{ getEquipmentTypeLabel(item.equipmentType) }}</h3>
+            <p class="price">${{ item.pricePerDay }}/day</p>
+            <span class="badge available">Available</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Insurance Section -->
+    <section class="service-section">
+      <h2 class="section-title">Insurance</h2>
+      <div *ngIf="insurances.length === 0" class="no-items">
+        <p>No available insurance options at the moment.</p>
+      </div>
+      <div class="items-grid" *ngIf="insurances.length > 0">
+        <div class="item-card" *ngFor="let insurance of insurances">
+          <div class="item-info">
+            <h3>{{ getInsuranceTypeLabel(insurance.type) }}</h3>
+            <p class="price">${{ insurance.price }}</p>
+            <span class="badge available">Available</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+

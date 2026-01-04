@@ -15,6 +15,10 @@ export class InsuranceService {
     return this.http.get<Insurance[]>(this.apiUrl);
   }
 
+  getAvailableInsurances(): Observable<Insurance[]> {
+    return this.http.get<Insurance[]>(`${this.apiUrl}/available`);
+  }
+
   getInsuranceById(id: number): Observable<Insurance> {
     return this.http.get<Insurance>(`${this.apiUrl}/${id}`);
   }
