@@ -10,11 +10,13 @@ import { EquipmentComponent } from '../components/equipment/equipment';
 import { EquipmentFormComponent } from '../components/equipment-form/equipment-form';
 import { InsuranceComponent } from '../components/insurance/insurance';
 import { InsuranceFormComponent } from '../components/insurance-form/insurance-form';
+import { ServicesComponent } from '../components/services/services';
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
   { path: 'home', component: LandingComponent, canActivate: [authGuard] },
+  { path: 'services', component: ServicesComponent, canActivate: [authGuard] },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'change-password', component: ChangePasswordComponent },

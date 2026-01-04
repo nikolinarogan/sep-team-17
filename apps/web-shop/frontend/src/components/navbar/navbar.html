@@ -9,6 +9,7 @@
       <!-- Authenticated User Links -->
       <div class="navbar-links" *ngIf="isAuthenticated()">
         <a routerLink="/home" routerLinkActive="active">Home</a>
+        <a routerLink="/services" routerLinkActive="active">Services</a>
         
         <!-- Admin Only Links -->
         <a routerLink="/vehicles" routerLinkActive="active" *ngIf="isAdmin()">Manage Vehicles</a>
