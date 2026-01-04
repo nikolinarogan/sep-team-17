@@ -1,0 +1,70 @@
+<div class="insurance-form-container">
+  <div class="insurance-form-card">
+    <h2>{{ isEditMode ? 'Edit Insurance' : 'Add New Insurance' }}</h2>
+    
+    <form [formGroup]="insuranceForm" (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="type">Insurance Type</label>
+        <select 
+          id="type" 
+          formControlName="type"
+          class="form-control"
+          [class.error]="insuranceForm.get('type')?.invalid && insuranceForm.get('type')?.touched">
+          <option value="">Select Insurance Type</option>
+          <option *ngFor="let type of insuranceTypes" [value]="type">
+            {{ getInsuranceTypeLabel(type) }}
+          </option>
+        </select>
+        <div class="error-message" *ngIf="insuranceForm.get('type')?.invalid && insuranceForm.get('type')?.touched">
+          Insurance type is required
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="price">Price ($)</label>
+        <input 
+          type="number" 
+          id="price" 
+          formControlName="price"
+          step="0.01"
+          min="0"
+          class="form-control"
+          [class.error]="insuranceForm.get('price')?.invalid && insuranceForm.get('price')?.touched">
+        <div class="error-message" *ngIf="insuranceForm.get('price')?.invalid && insuranceForm.get('price')?.touched">
+          <span *ngIf="insuranceForm.get('price')?.errors?.['required']">Price is required</span>
+          <span *ngIf="insuranceForm.get('price')?.errors?.['min']">Price must be greater than 0</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="isAvailable">Availability</label>
+        <select 
+          id="isAvailable" 
+          formControlName="isAvailable"
+          class="form-control">
+          <option [value]="true">Available</option>
+          <option [value]="false">Not Available</option>
+        </select>
+      </div>
+
+      <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
+      <div class="success-message" *ngIf="successMessage">{{ successMessage }}</div>
+
+      <div class="form-actions">
+        <button 
+          type="submit" 
+          class="btn-primary"
+          [disabled]="insuranceForm.invalid || isLoading">
+          {{ isLoading ? 'Saving...' : (isEditMode ? 'Update Insurance' : 'Create Insurance') }}
+        </button>
+        <button 
+          type="button" 
+          class="btn-secondary"
+          (click)="cancel()">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+

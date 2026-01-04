@@ -1,0 +1,39 @@
+<div class="equipment-container">
+  <div class="equipment-header">
+    <h1>Equipment Management</h1>
+    <button class="btn-primary" (click)="addNewEquipment()">Add New Equipment</button>
+  </div>
+
+  <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+  <div *ngIf="isLoading" class="loading">
+    <p>Loading equipment...</p>
+  </div>
+
+  <div *ngIf="!isLoading && equipment.length === 0 && !errorMessage" class="no-equipment">
+    <p>No equipment found. Click "Add New Equipment" to get started.</p>
+  </div>
+
+  <div *ngIf="!isLoading && equipment.length === 0 && errorMessage" class="no-equipment">
+    <p>Error: {{ errorMessage }}</p>
+  </div>
+
+  <div class="equipment-grid" *ngIf="!isLoading && equipment.length > 0">
+    <div class="equipment-card" *ngFor="let item of equipment">
+      <div class="equipment-info">
+        <h3>{{ getEquipmentTypeLabel(item.equipmentType) }}</h3>
+        <p class="price">${{ item.pricePerDay }}/day</p>
+        <p class="availability" 
+           [class.available]="getAvailability(item)" 
+           [class.unavailable]="!getAvailability(item)">
+          {{ getAvailability(item) ? 'Available' : 'Not Available' }}
+        </p>
+      </div>
+      <div class="equipment-actions">
+        <button class="btn-edit" (click)="editEquipment(item.id!)">Edit</button>
+        <button class="btn-delete" (click)="deleteEquipment(item.id!)">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
