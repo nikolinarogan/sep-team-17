@@ -25,6 +25,15 @@ export interface MerchantConfigRequest {
   credentials: { [key: string]: string }; 
 }
 
+export interface MerchantConfigDTO {
+  methodName: string;
+  credentials: { [key: string]: string }; 
+}
+
+export interface MerchantConfigResponse {
+  message: string;
+}
+
 export interface LoginRequestDTO {
   username: string;
   password: string;

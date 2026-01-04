@@ -8,6 +8,7 @@ import { MerchantCreateRequest, MerchantCredentials } from '../models/psp-models
 })
 export class Merchant {
   private apiUrl = 'https://localhost:8443/api/merchants';
+  private adminApiUrl = 'https://localhost:8443/api/admin';
 
   constructor(private http: HttpClient) { }
 
@@ -17,5 +18,18 @@ export class Merchant {
 
   createMerchant(data: MerchantCreateRequest): Observable<MerchantCredentials> {
     return this.http.post<MerchantCredentials>(`${this.apiUrl}/create`, data);
+  }
+  getMerchantById(id: string): Observable<any> {
+    return this.http.get<any>(`${this.adminApiUrl}/merchants/${id}`);
+  }
+
+  saveMerchantServices(id: string, configs: any[]): Observable<string> {
+    return this.http.post(`${this.adminApiUrl}/merchants/${id}/services`, configs, { 
+      responseType: 'text' 
+    });
+  }
+  
+  getMerchantSubscriptions(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/${id}/subscriptions`);
   }
 }

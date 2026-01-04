@@ -48,39 +48,42 @@
     </div>
 
     <div class="col-md-8">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <h5 class="card-title mb-4">Registrovani prodavci</h5>
-          
-          <div class="table-responsive">
-            <table class="table table-hover align-middle">
-              <thead class="table-light">
-                <tr>
-                  <th>ID</th>
-                  <th>Naziv</th>
-                  <th>URL</th>
-                  <th class="text-end">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let m of merchants">
-                  <td><code>{{ m.merchantId }}</code></td>
-                  <td class="fw-bold">{{ m.name }}</td>
-                  <td><a [href]="m.webShopUrl" target="_blank" class="text-decoration-none">{{ m.webShopUrl }}</a></td>
-                  <td class="text-end">
-                    <span class="badge bg-success rounded-pill">Aktivan</span>
-                  </td>
-                </tr>
-                <tr *ngIf="merchants.length === 0">
-                  <td colspan="4" class="text-center py-4 text-muted">Nema registrovanih prodavaca.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-        </div>
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <h5 class="card-title mb-4">Registrovani prodavci</h5>
+      
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Naziv</th>
+              <th>URL</th>
+              <th class="text-end">Akcije</th> </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let m of merchants">
+              <td><code>{{ m.merchantId }}</code></td>
+              <td class="fw-bold">{{ m.name }}</td>
+              <td><a [href]="m.webShopUrl" target="_blank" class="text-decoration-none">{{ m.webShopUrl }}</a></td>
+              <td class="text-end">
+                <div class="d-flex justify-content-end gap-2">
+                  <a [routerLink]="['/admin/merchant', m.merchantId]" class="btn btn-sm btn-primary">
+                    <i class="bi bi-sliders"></i> Podesi
+                  </a>
+                  <span class="badge bg-success rounded-pill d-flex align-items-center">Aktivan</span>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="merchants.length === 0">
+              <td colspan="4" class="text-center py-4 text-muted">Nema registrovanih prodavaca.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
+  </div>
+</div>
 
   </div>
 </div>
