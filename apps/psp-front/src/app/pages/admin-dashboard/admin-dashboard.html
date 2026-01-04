@@ -5,7 +5,12 @@
       <h2 class="text-primary fw-bold">Admin Dashboard</h2>
       <p class="text-muted">Upravljanje prodavcima i servisima</p>
     </div>
-    <button class="btn btn-outline-danger" (click)="logout()">Odjavi se</button>
+    <div class="d-flex gap-2">
+      <button class="btn btn-info text-white" [routerLink]="['/admin/methods']">
+        <i class="bi bi-gear-fill me-1"></i> Globalne metode
+      </button>
+      <button class="btn btn-outline-danger" (click)="logout()">Odjavi se</button>
+    </div>
   </div>
 
   <div class="row">
