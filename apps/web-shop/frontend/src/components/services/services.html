@@ -4,6 +4,16 @@
     <p class="subtitle">Browse our available vehicles, equipment, and insurance options</p>
   </div>
 
+  <!-- Success Message -->
+  <div *ngIf="successMessage" class="message success-message">
+    <p>{{ successMessage }}</p>
+  </div>
+
+  <!-- Error Message -->
+  <div *ngIf="errorMessage" class="message error-message">
+    <p>{{ errorMessage }}</p>
+  </div>
+
   <div *ngIf="isLoading" class="loading">
     <p>Loading services...</p>
   </div>
@@ -27,6 +37,7 @@
             <h3>{{ vehicle.model }}</h3>
             <p class="price">${{ vehicle.pricePerDay }}/day</p>
             <span class="badge available">Available</span>
+            <button class="buy-button" (click)="buyVehicle(vehicle)">Buy</button>
           </div>
         </div>
       </div>
@@ -44,6 +55,7 @@
             <h3>{{ getEquipmentTypeLabel(item.equipmentType) }}</h3>
             <p class="price">${{ item.pricePerDay }}/day</p>
             <span class="badge available">Available</span>
+            <button class="buy-button" (click)="buyEquipment(item)">Buy</button>
           </div>
         </div>
       </div>
@@ -61,10 +73,52 @@
             <h3>{{ getInsuranceTypeLabel(insurance.type) }}</h3>
             <p class="price">${{ insurance.price }}</p>
             <span class="badge available">Available</span>
+            <button class="buy-button" (click)="buyInsurance(insurance)">Buy</button>
           </div>
         </div>
       </div>
     </section>
+  </div>
+
+  <!-- Date Selection Modal -->
+  <div *ngIf="showDateModal" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Select Rental Period</h2>
+        <button class="close-button" (click)="closeModal()">&times;</button>
+      </div>
+      <form [formGroup]="dateForm" (ngSubmit)="onSubmitDateForm()" class="date-form">
+        <div class="form-group">
+          <label for="startDate">Start Date *</label>
+          <input 
+            type="date" 
+            id="startDate" 
+            formControlName="startDate"
+            [min]="getMinDate()"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="endDate">End Date *</label>
+          <input 
+            type="date" 
+            id="endDate" 
+            formControlName="endDate"
+            [min]="dateForm.get('startDate')?.value || getMinDate()"
+            required
+          />
+          <div *ngIf="dateForm.get('endDate')?.errors?.['dateRange']" class="error-text">
+            End date must be after start date
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="cancel-button" (click)="closeModal()">Cancel</button>
+          <button type="submit" class="submit-button" [disabled]="isSubmitting || !dateForm.valid">
+            {{ isSubmitting ? 'Processing...' : 'Confirm Order' }}
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 

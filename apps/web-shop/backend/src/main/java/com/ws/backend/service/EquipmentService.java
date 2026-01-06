@@ -46,6 +46,7 @@ public class EquipmentService {
 
     public void deleteEquipment(Long id) {
         Equipment equipment = getEquipmentById(id);
-        equipmentRepository.delete(equipment);
+        equipment.setAvailable(false);
+        equipmentRepository.save(equipment);
     }
 }

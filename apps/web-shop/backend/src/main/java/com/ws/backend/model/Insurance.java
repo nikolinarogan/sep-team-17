@@ -21,7 +21,7 @@ public class Insurance {
     private Double price;
 
     @Column(nullable = false)
-    private Boolean isAvailable;
+    private Boolean isAvailable; // logicko brisanje
 
     public Long getId() {
         return id;
