@@ -21,7 +21,7 @@ public class Vehicle {
 
     private String model;
 
-    private Boolean isAvailable;
+    private Boolean isAvailable; //logicko brisanje
 
     private Double pricePerDay; //moram provjeriti kako ce se raditi sa valutama, zaboravila sam
 

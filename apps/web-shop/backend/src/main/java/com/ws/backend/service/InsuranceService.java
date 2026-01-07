@@ -47,6 +47,7 @@ public class InsuranceService {
 
     public void deleteInsurance(Long id) {
         Insurance insurance = getInsuranceById(id);
-        insuranceRepository.delete(insurance);
+        insurance.setIsAvailable(false);
+        insuranceRepository.save(insurance);
     }
 }
