@@ -38,7 +38,7 @@ public class PaymentTransaction {
     @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    // Način plaćanja (popunjava se kasnije kad PSP javi šta je korišćeno)
+    // Način plaćanja (popunjava se kasnije kad PSP javi mozda prebacim na enum)
     private String paymentMethod;
 
 //    // Opciono: Globalni ID iz banke ako ga dobijem
