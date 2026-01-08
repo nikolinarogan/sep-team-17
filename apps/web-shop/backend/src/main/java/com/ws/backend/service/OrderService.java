@@ -1,12 +1,21 @@
 package com.ws.backend.service;
 
 import com.ws.backend.dto.OrderRequestDTO;
+import com.ws.backend.dto.PaymentResponseDTO;
+import com.ws.backend.dto.PspRequestDTO;
 import com.ws.backend.model.*;
 import com.ws.backend.repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
@@ -28,8 +37,28 @@ public class OrderService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private PaymentTransactionRepository transactionRepository;
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${webshop.merchant.id}")
+    private String merchantId;
+
+    @Value("${webshop.merchant.password}")
+    private String merchantPassword;
+
+    @Value("${psp.api.url}")
+    private String pspApiUrl;
+    static {
+        HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
+            public boolean verify(String hostname, SSLSession session) {
+                return true; // Dozvoli sve nazive (samo za dev!)
+            }
+        });
+    }
     @Transactional
-    public Order createOrder(OrderRequestDTO request, Long userId) {
+    public PaymentResponseDTO createOrder(OrderRequestDTO request, Long userId) {
 
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
@@ -122,7 +151,58 @@ public class OrderService {
             long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
             order.setTotalAmount(equipment.getPricePerDay() * days);
         }
+        order = orderRepository.save(order);
 
-        return orderRepository.save(order);
+        PaymentTransaction tx = new PaymentTransaction();
+        tx.setOrder(order);
+        tx.setMerchantOrderId( "TX-" + order.getId() + "-" + System.currentTimeMillis());
+        tx.setStatus(OrderStatus.PENDING);
+        tx.setCreatedAt(LocalDateTime.now());
+        transactionRepository.save(tx);
+
+
+
+        PspRequestDTO pspRequest = new PspRequestDTO();
+        pspRequest.setMerchantId(merchantId);
+        pspRequest.setMerchantPassword(merchantPassword);
+        pspRequest.setAmount(BigDecimal.valueOf(order.getTotalAmount()));
+        pspRequest.setCurrency(order.getCurrency());
+        pspRequest.setMerchantOrderId(tx.getMerchantOrderId());
+        pspRequest.setMerchantTimestamp(tx.getCreatedAt());
+
+        // URL-ovi tvog Angulara
+        pspRequest.setSuccessUrl("https://localhost:4200/payment-success");
+        pspRequest.setFailedUrl("https://localhost:4200/payment-failed");
+        pspRequest.setErrorUrl("https://localhost:4200/payment-error");
+
+
+        try {
+            ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
+                    pspApiUrl, pspRequest, PaymentResponseDTO.class);
+
+            // 5. SAČUVAJ MARIJIN ID TRANSAKCIJE (pspPaymentId)
+            PaymentResponseDTO pspData = response.getBody();
+            if (pspData != null) {
+                tx.setPspPaymentId(pspData.getPaymentId());
+                transactionRepository.save(tx);
+            }
+
+            return pspData; // Vraćaš URL i ID tvom kontroleru
+
+        } catch (Exception e) {
+            // Ako PSP ne odgovori, poništavamo narudžbinu (ili stavljamo u ERROR)
+            order.setOrderStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+            throw new RuntimeException("PSP is not reachable: " + e.getMessage());
+        }
+    }
+
+    private void saveInitialTransaction(Order order) {
+        PaymentTransaction tx = new PaymentTransaction();
+        tx.setOrder(order);
+        tx.setMerchantOrderId( "TX-" + order.getId() + "-" + System.currentTimeMillis());
+        tx.setStatus(OrderStatus.PENDING);
+        tx.setCreatedAt(LocalDateTime.now());
+        transactionRepository.save(tx);
     }
 }

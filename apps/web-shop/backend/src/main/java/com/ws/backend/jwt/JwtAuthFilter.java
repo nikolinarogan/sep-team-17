@@ -32,28 +32,43 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
 
         String token = JwtService.extractTokenFromRequest(request);
+        System.out.println("JwtAuthFilter - Request URI: " + request.getRequestURI());
+        System.out.println("JwtAuthFilter - Token extracted: " + (token != null ? "Yes (length: " + token.length() + ")" : "No"));
+        
         if (token == null) {
+            System.out.println("JwtAuthFilter - No token found, continuing without authentication");
             filterChain.doFilter(request, response);
             return;
         }
 
-        if (jwtService.validateToken(token)) {
-            Claims claims = jwtService.getClaims(token);
-            String email = claims.getSubject();
-            String role = claims.get("role", String.class);
-            Long userId = claims.get("userId", Long.class);
+        boolean isValid = jwtService.validateToken(token);
+        System.out.println("JwtAuthFilter - Token valid: " + isValid);
+        
+        if (isValid) {
+            try {
+                Claims claims = jwtService.getClaims(token);
+                String email = claims.getSubject();
+                String role = claims.get("role", String.class);
+                Long userId = claims.get("userId", Long.class);
 
-            String jti = claims.getId();
+                String jti = claims.getId();
 
-            List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
+                List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
 
-            System.out.println("JWT claims -> email: " + email + ", role: " + role + ", userId: " + userId + ", Jti: " + jti);
+                System.out.println("JWT claims -> email: " + email + ", role: " + role + ", userId: " + userId + ", Jti: " + jti);
 
-            UsernamePasswordAuthenticationToken authToken =
-                    new UsernamePasswordAuthenticationToken(email, null, authorities);
-            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(email, null, authorities);
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-            SecurityContextHolder.getContext().setAuthentication(authToken);
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+                System.out.println("JwtAuthFilter - Authentication set in SecurityContext");
+            } catch (Exception e) {
+                System.err.println("JwtAuthFilter - Error processing token: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            System.err.println("JwtAuthFilter - Token validation failed for request: " + request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);
