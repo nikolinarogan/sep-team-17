@@ -1,10 +1,116 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>Bank Payment Gateway</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .payment-card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px; }
+        h2 { text-align: center; color: #333; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
+        input:focus { border-color: #007bff; outline: none; }
+        .row { display: flex; gap: 10px; }
+        button { width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; transition: background 0.3s; }
+        button:hover { background-color: #218838; }
+        .error { color: red; font-size: 13px; margin-top: 5px; display: none; text-align: center;}
+        .success { color: green; font-size: 13px; margin-top: 5px; display: none; text-align: center;}
+    </style>
 </head>
 <body>
+
+<div class="payment-card">
+    <h2>Secure Payment</h2>
+    <div id="statusMessage" class="error"></div>
+    <div id="successMessage" class="success"></div>
+
+    <form id="paymentForm">
+        <input type="hidden" id="paymentId" name="paymentId">
+
+        <div class="form-group">
+            <label>Card Holder Name</label>
+            <input type="text" id="cardHolderName" placeholder="PERA PERIC" required>
+        </div>
+
+        <div class="form-group">
+            <label>Card Number (PAN)</label>
+            <input type="text" id="pan" placeholder="1234567812345678" maxlength="16" required>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label>Expiration (MM/YY)</label>
+                <input type="text" id="expirationDate" placeholder="12/30" maxlength="5" required>
+            </div>
+            <div class="form-group">
+                <label>CVV</label>
+                <input type="password" id="securityCode" placeholder="123" maxlength="3" required>
+            </div>
+        </div>
+
+        <button type="submit" id="payButton">PLATI</button>
+    </form>
+</div>
+
+<script>
+    // 1. Uzimamo Payment ID iz URL-a (npr. ?paymentId=neki-uuid)
+    // Ovo je kljucno jer banka mora znati KOJU transakciju placamo
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentIdFromUrl = urlParams.get('paymentId');
+
+    if (paymentIdFromUrl) {
+        document.getElementById('paymentId').value = paymentIdFromUrl;
+    } else {
+        document.getElementById('statusMessage').innerText = "Greška: Nedostaje ID transakcije!";
+        document.getElementById('statusMessage').style.display = "block";
+        document.getElementById('payButton').disabled = true;
+    }
+
+    // 2. Slanje podataka na Backend (Bank Backend)
+    document.getElementById('paymentForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = {
+            paymentId: document.getElementById('paymentId').value,
+            pan: document.getElementById('pan').value,
+            securityCode: document.getElementById('securityCode').value,
+            cardHolderName: document.getElementById('cardHolderName').value,
+            expirationDate: document.getElementById('expirationDate').value
+        };
+
+        const statusDiv = document.getElementById('statusMessage');
+        const successDiv = document.getElementById('successMessage');
+        const btn = document.getElementById('payButton');
+
+        try {
+            btn.disabled = true;
+            btn.innerText = "Processing...";
+            statusDiv.style.display = 'none';
+
+            // Pozivamo tvoj BankController -> processPayment
+            const response = await fetch('/api/bank/pay', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            if (response.ok) {
+                successDiv.innerText = "Plaćanje uspešno!";
+                successDiv.style.display = "block";
+                // Ovde kasnije dodajemo redirect nazad na PSP (Success URL)
+            } else {
+                const errorText = await response.text();
+                throw new Error(errorText);
+            }
+        } catch (error) {
+            statusDiv.innerText = "Greška: " + error.message;
+            statusDiv.style.display = "block";
+            btn.disabled = false;
+            btn.innerText = "PLATI";
+        }
+    });
+</script>
 
 </body>
 </html>
