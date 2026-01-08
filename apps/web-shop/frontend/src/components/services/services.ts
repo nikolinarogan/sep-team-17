@@ -7,10 +7,11 @@ import { VehicleService } from '../../app/services/vehicle.service';
 import { EquipmentService } from '../../app/services/equipment.service';
 import { InsuranceService } from '../../app/services/insurance.service';
 import { OrderService } from '../../app/services/order.service';
+import { AuthService } from '../../app/services/auth.service';
 import { Vehicle } from '../../app/models/vehicle.models';
 import { Equipment } from '../../app/models/equipment.models';
 import { Insurance } from '../../app/models/insurance.models';
-import { OrderRequest } from '../../app/models/order.models';
+import { OrderRequest, PaymentResponse } from '../../app/models/order.models';
 
 @Component({
   selector: 'app-services',
@@ -43,6 +44,7 @@ export class ServicesComponent implements OnInit {
     private equipmentService: EquipmentService,
     private insuranceService: InsuranceService,
     private orderService: OrderService,
+    private authService: AuthService,
     private fb: FormBuilder,
     private cdr: ChangeDetectorRef
   ) {
@@ -285,17 +287,20 @@ export class ServicesComponent implements OnInit {
     this.successMessage = '';
 
     this.orderService.createOrder(orderRequest).subscribe({
-      next: (order) => {
-        this.successMessage = `Order created successfully! Order ID: ${order.id}`;
-        this.isSubmitting = false;
-        this.closeModal();
-        this.cdr.detectChanges();
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => {
-          this.successMessage = '';
+      next: (paymentResponse) => {
+        if (paymentResponse && paymentResponse.paymentUrl) {
+          console.log('Redirecting to payment URL:', paymentResponse.paymentUrl);
+          this.isSubmitting = false;
+          this.closeModal();
           this.cdr.detectChanges();
-        }, 5000);
+          
+          // Redirect to PSP payment page
+          window.location.href = paymentResponse.paymentUrl;
+        } else {
+          this.errorMessage = 'Failed to get payment URL. Please try again.';
+          this.isSubmitting = false;
+          this.cdr.detectChanges();
+        }
       },
       error: (error) => {
         console.error('Error creating order:', error);
@@ -351,27 +356,53 @@ export class ServicesComponent implements OnInit {
     this.errorMessage = '';
     this.successMessage = '';
 
+    // Check if user is authenticated before making request
+    if (!this.authService.isAuthenticated()) {
+      this.errorMessage = 'You must be logged in to create an order. Please log in and try again.';
+      this.isSubmitting = false;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    console.log('Creating order with token:', this.authService.getToken() ? 'Token present' : 'No token');
+
     this.orderService.createOrder(orderRequest).pipe(
-      tap(order => {
-        console.log('Order created successfully:', order);
+      tap(paymentResponse => {
+        console.log('Payment response received:', paymentResponse);
       }),
       catchError(error => {
         console.error('Error creating order:', error);
-        this.errorMessage = error.error?.message || error.error || 'Failed to create order. Please try again.';
+        console.error('Error status:', error.status);
+        console.error('Error message:', error.message);
+        console.error('Error body:', error.error);
+        console.error('Request URL:', error.url);
+        console.error('Token present:', this.authService.getToken() ? 'Yes' : 'No');
+        console.error('Is authenticated:', this.authService.isAuthenticated());
+        
+        if (error.status === 403) {
+          this.errorMessage = 'Access denied (403). Please make sure you are logged in and your session is valid. If the problem persists, please log out and log in again.';
+        } else if (error.status === 401) {
+          this.errorMessage = 'Authentication failed (401). Please log in again.';
+          // Optionally redirect to login
+          // this.router.navigate(['/login']);
+        } else if (error.status === 0) {
+          this.errorMessage = 'Network error. Please check if the backend server is running and accessible.';
+        } else {
+          this.errorMessage = error.error?.message || error.error || `Failed to create order (${error.status}). Please try again.`;
+        }
         this.isSubmitting = false;
         this.cdr.detectChanges();
         return of(null);
       })
     ).subscribe({
-      next: (order) => {
-        if (order) {
-          console.log('Processing successful order response:', order);
-          this.successMessage = `Order created successfully! Order ID: ${order.id}`;
+      next: (paymentResponse) => {
+        if (paymentResponse && paymentResponse.paymentUrl) {
+          console.log('Redirecting to payment URL:', paymentResponse.paymentUrl);
           this.isSubmitting = false;
           
           // Close modal and return to services list
           this.showOrderSummaryModal = false;
-          this.showDetails = false; // Return to services list page
+          this.showDetails = false;
           this.selectedService = null;
           this.selectedItem = null;
           this.dateForm.reset();
@@ -380,13 +411,13 @@ export class ServicesComponent implements OnInit {
           // Force change detection
           this.cdr.detectChanges();
           
-          // Clear success message after 5 seconds
-          setTimeout(() => {
-            this.successMessage = '';
-            this.cdr.detectChanges();
-          }, 5000);
+          // Redirect to PSP payment page
+          window.location.href = paymentResponse.paymentUrl;
         } else {
-          console.log('Order response was null');
+          console.log('Payment response was null or missing paymentUrl');
+          this.errorMessage = 'Failed to get payment URL. Please try again.';
+          this.isSubmitting = false;
+          this.cdr.detectChanges();
         }
       },
       error: (error) => {

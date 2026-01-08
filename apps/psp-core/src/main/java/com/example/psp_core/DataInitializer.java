@@ -75,7 +75,7 @@ public class DataInitializer implements CommandLineRunner {
         if (merchantRepository.count() == 0) {
             Merchant m = new Merchant();
             m.setName("Rent A Car Demo");
-            m.setWebShopUrl("http://localhost:4200"); // URL Web Shopa
+            m.setWebShopUrl("https://localhost:4200"); // URL Web Shopa
             m.setMerchantId("shop_123");       // API KEY
 
             m.setMerchantPassword(passwordEncoder.encode("shop_pass"));
@@ -113,9 +113,9 @@ public class DataInitializer implements CommandLineRunner {
 
             t.setUuid("test-transakcija-123");
 
-            t.setSuccessUrl("http://localhost:4200/success");
-            t.setFailedUrl("http://localhost:4200/failed");
-            t.setErrorUrl("http://localhost:4200/error");
+            t.setSuccessUrl("https://localhost:4200/success");
+            t.setFailedUrl("https://localhost:4200/failed");
+            t.setErrorUrl("https://localhost:4200/error");
 
             paymentTransactionRepository.save(t);
             System.out.println("✅ TEST TRANSAKCIJA KREIRANA: UUID = test-transakcija-123");

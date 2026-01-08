@@ -29,15 +29,6 @@ public class OrderRequestDTO {
     @Size(min = 3, max = 3, message = "Currency must be 3 characters (e.g., EUR, USD)")
     private String currency = "EUR";
 
-    // Provjera da li se nalazi samo 1 artikal kupljeni
-    public boolean hasExactlyOneItem() {
-        int count = 0;
-        if (vehicleId != null) count++;
-        if (insuranceId != null) count++;
-        if (equipmentId != null) count++;
-        return count == 1;
-    }
-
     public boolean hasDates() {
         return startDate != null && endDate != null;
     }

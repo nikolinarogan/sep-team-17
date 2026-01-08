@@ -24,3 +24,8 @@ export interface Order {
   completedAt?: string;
 }
 
+export interface PaymentResponse {
+  paymentUrl: string;
+  paymentId: string;
+}
+

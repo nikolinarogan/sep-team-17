@@ -1,6 +1,7 @@
 package com.ws.backend.controller;
 
 import com.ws.backend.dto.OrderRequestDTO;
+import com.ws.backend.dto.PaymentResponseDTO;
 import com.ws.backend.jwt.JwtService;
 import com.ws.backend.model.Order;
 import com.ws.backend.service.OrderService;
@@ -39,8 +40,8 @@ public class OrderController {
                 return ResponseEntity.badRequest().body("User ID not found in token");
             }
 
-            Order order = orderService.createOrder(request, userId);
-            return ResponseEntity.ok(order);
+            PaymentResponseDTO responseDTO = orderService.createOrder(request, userId);
+            return ResponseEntity.ok(responseDTO);
 
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body("Failed to create order: " + e.getMessage());
