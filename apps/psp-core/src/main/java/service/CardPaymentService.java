@@ -12,20 +12,14 @@ import java.util.Map;
 @Service
 public class CardPaymentService {
 
+    // Vrati na http ako si ugasila SSL, ili ostavi https ako koristiš onaj "TrustAll" hack
     private static final String BANK_URL = "https://localhost:8082/api/bank/card";
 
-    // 1. Definiši polje za RestTemplate
-    private final RestTemplate restTemplate;
-
-    // 2. Ubrizgaj ga kroz konstruktor (Dependency Injection)
-    public CardPaymentService(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
-    }
-
     public String initializePayment(PaymentTransaction transaction) {
-        // 3. OBRIŠI liniju: RestTemplate restTemplate = new RestTemplate();
-        // Koristimo "this.restTemplate" koji je konfigurisan da veruje HTTPS-u
+        // OVO JE ONAJ STARI NAČIN (pravimo novi objekat svaki put)
+        RestTemplate restTemplate = new RestTemplate();
 
+        // 1. Priprema podataka
         Map<String, Object> request = new HashMap<>();
         request.put("merchantId", "prodavac123");
         request.put("merchantPassword", "sifra123");
@@ -35,11 +29,15 @@ public class CardPaymentService {
         request.put("pspTimestamp", LocalDateTime.now());
 
         try {
-            // Pozivamo banku preko konfigurisanog templejta
-            ResponseEntity<String> response = this.restTemplate.postForEntity(BANK_URL, request, String.class);
+            // 2. Pozivamo Banku
+            // Ovde očekujemo String.class jer banka vraća čist URL
+            ResponseEntity<String> response = restTemplate.postForEntity(BANK_URL, request, String.class);
 
             String responseBody = response.getBody();
+
             System.out.println("---- ODGOVOR BANKE: " + responseBody);
+
+            // 3. Vraćamo URL frontendu
             return responseBody;
 
         } catch (Exception e) {
