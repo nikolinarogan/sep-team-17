@@ -14,5 +14,10 @@ export class Payment {
   getCheckoutData(uuid: string): Observable<CheckoutResponse> {
     return this.http.get<CheckoutResponse>(`${this.apiUrl}/payments/${uuid}`);
   }
+
+   initiateCardPayment(uuid: string) {
+    return this.http.post<{ paymentUrl: string }>(`${this.apiUrl}/payments/checkout/${uuid}/card`, {});
+  }
+
   
 }

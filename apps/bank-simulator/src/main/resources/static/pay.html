@@ -98,6 +98,7 @@
             if (response.ok) {
                 successDiv.innerText = "Plaćanje uspešno!";
                 successDiv.style.display = "block";
+
                 // Ovde kasnije dodajemo redirect nazad na PSP (Success URL)
             } else {
                 const errorText = await response.text();

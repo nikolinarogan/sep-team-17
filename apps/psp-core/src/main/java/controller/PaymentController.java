@@ -3,20 +3,30 @@ package controller;
 import dto.CheckoutResponseDTO;
 import dto.PaymentRequestDTO;
 import dto.PaymentResponseDTO;
+import model.PaymentTransaction;
+import repository.PaymentTransactionRepository;
+import service.CardPaymentService;
 import service.PaymentService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/payments")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "https://localhost:4201", allowedHeaders = "*", allowCredentials = "true")
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final CardPaymentService cardPaymentService;
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
-    public PaymentController(PaymentService paymentService) {
+    public PaymentController(PaymentService paymentService, CardPaymentService cardPaymentService, PaymentTransactionRepository paymentTransactionRepository) {
         this.paymentService = paymentService;
+        this.cardPaymentService = cardPaymentService;
+        this.paymentTransactionRepository = paymentTransactionRepository;
     }
 
     /**
@@ -55,5 +65,20 @@ public class PaymentController {
     public ResponseEntity<Void> updateStatus(@RequestBody dto.PaymentCallbackDTO callback) {
         paymentService.finaliseTransaction(callback);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/checkout/{uuid}/card")
+    public ResponseEntity<?> initCardPayment(@PathVariable String uuid) {
+        // 1. Nađi transakciju u bazi
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
+
+        // 2. Pozovi servis da kontaktira Banku
+        String bankUrl = cardPaymentService.initializePayment(tx);
+
+        // 3. Vrati URL Angularu
+        Map<String, String> response = new HashMap<>();
+        response.put("paymentUrl", bankUrl);
+        return ResponseEntity.ok(response);
     }
 }
