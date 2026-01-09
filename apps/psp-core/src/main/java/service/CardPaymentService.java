@@ -3,7 +3,7 @@ package service;
 import model.PaymentTransaction;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestTemplate; // <--- BITNO!
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -12,14 +12,17 @@ import java.util.Map;
 @Service
 public class CardPaymentService {
 
-    // Vrati na http ako si ugasila SSL, ili ostavi https ako koristiš onaj "TrustAll" hack
     private static final String BANK_URL = "https://localhost:8082/api/bank/card";
 
-    public String initializePayment(PaymentTransaction transaction) {
-        // OVO JE ONAJ STARI NAČIN (pravimo novi objekat svaki put)
-        RestTemplate restTemplate = new RestTemplate();
+    // Polje za RestTemplate
+    private final RestTemplate restTemplate;
 
-        // 1. Priprema podataka
+    // Konstruktor (Spring ovde ubacuje onaj konfigurisani RestTemplate)
+    public CardPaymentService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    public String initializePayment(PaymentTransaction transaction) {
         Map<String, Object> request = new HashMap<>();
         request.put("merchantId", "prodavac123");
         request.put("merchantPassword", "sifra123");
@@ -29,20 +32,26 @@ public class CardPaymentService {
         request.put("pspTimestamp", LocalDateTime.now());
 
         try {
-            // 2. Pozivamo Banku
-            // Ovde očekujemo String.class jer banka vraća čist URL
-            ResponseEntity<String> response = restTemplate.postForEntity(BANK_URL, request, String.class);
+            // IZMENA: Umesto String.class, tražimo Map.class (da Java odmah parsira JSON)
+            ResponseEntity<Map> response = this.restTemplate.postForEntity(BANK_URL, request, Map.class);
 
-            String responseBody = response.getBody();
+            // Uzimamo telo odgovora kao Mapu
+            Map<String, Object> body = response.getBody();
 
-            System.out.println("---- ODGOVOR BANKE: " + responseBody);
+            // Proveravamo da li smo dobili ono što nam treba
+            if (body != null && body.containsKey("paymentUrl")) {
+                String url = body.get("paymentUrl").toString();
+                System.out.println("---- IZVUČEN URL: " + url);
 
-            // 3. Vraćamo URL frontendu
-            return responseBody;
+                // Vraćamo SAMO URL (čist string: "https://localhost:8082/...")
+                return url;
+            }
+
+            throw new RuntimeException("Banka nije vratila paymentUrl!");
 
         } catch (Exception e) {
             e.printStackTrace();
-            throw new RuntimeException("Neuspešna komunikacija sa bankom: " + e.getMessage());
+            throw new RuntimeException("Greška: " + e.getMessage());
         }
     }
 }
