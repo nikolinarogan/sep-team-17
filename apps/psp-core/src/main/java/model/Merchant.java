@@ -22,5 +22,4 @@ public class Merchant {
 
     @Column(name = "web_shop_url")
     private String webShopUrl;
-
 }

@@ -7,7 +7,7 @@ import { Insurance } from '../models/insurance.models';
   providedIn: 'root'
 })
 export class InsuranceService {
-  private apiUrl = 'http://localhost:8080/insurances';
+  private apiUrl = 'https://localhost:8080/insurances';
 
   constructor(private http: HttpClient) {}
 

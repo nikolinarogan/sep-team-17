@@ -1,4 +1,4 @@
-package controller;
+    package controller;
 
 import dto.CheckoutResponseDTO;
 import dto.PaymentRequestDTO;
@@ -29,33 +29,33 @@ public class PaymentController {
         this.paymentTransactionRepository = paymentTransactionRepository;
     }
 
-    /**
-     * KORAK 1: Inicijalizacija plaćanja
-     * ---------------------------------------------------------
-     * Zove Web Shop
-     * Kada korisnik na sajtu prodavca klikne "Plati"
-     * ULAZ: Iznos, MerchantID, OrderID...
-     * IZLAZ: URL ka PSP Checkout stranici (npr. http://localhost:4201/checkout/uuid...)
-     */
-    @PostMapping("/init")
-    public ResponseEntity<PaymentResponseDTO> initializePayment(@Valid @RequestBody PaymentRequestDTO request) {
-        PaymentResponseDTO response = paymentService.createTransaction(request);
-        return ResponseEntity.ok(response);
-    }
+        /**
+         * KORAK 1: Inicijalizacija plaćanja
+         * ---------------------------------------------------------
+         * Zove Web Shop
+         * Kada korisnik na sajtu prodavca klikne "Plati"
+         * ULAZ: Iznos, MerchantID, OrderID...
+         * IZLAZ: URL ka PSP Checkout stranici (npr. http://localhost:4201/checkout/uuid...)
+         */
+        @PostMapping("/init")
+        public ResponseEntity<PaymentResponseDTO> initializePayment(@Valid @RequestBody PaymentRequestDTO request) {
+            PaymentResponseDTO response = paymentService.createTransaction(request);
+            return ResponseEntity.ok(response);
+        }
 
-    /**
-     * KORAK 2: Podaci za Checkout stranicu
-     * ---------------------------------------------------------
-     * Zove PSP Frontend
-     * Kada se korisniku otvori link iz prethodnog koraka
-     * ULAZ: UUID transakcije (iz URL-a)
-     * IZLAZ: Iznos, valuta i dostupne metode plaćanja (npr. ["CARD", "QR"])
-     */
-    @GetMapping("/{uuid}")
-    public ResponseEntity<CheckoutResponseDTO> getCheckoutPageData(@PathVariable String uuid) {
-        CheckoutResponseDTO data = paymentService.getCheckoutData(uuid);
-        return ResponseEntity.ok(data);
-    }
+        /**
+         * KORAK 2: Podaci za Checkout stranicu
+         * ---------------------------------------------------------
+         * Zove PSP Frontend
+         * Kada se korisniku otvori link iz prethodnog koraka
+         * ULAZ: UUID transakcije (iz URL-a)
+         * IZLAZ: Iznos, valuta i dostupne metode plaćanja (npr. ["CARD", "QR"])
+         */
+        @GetMapping("/{uuid}")
+        public ResponseEntity<CheckoutResponseDTO> getCheckoutPageData(@PathVariable String uuid) {
+            CheckoutResponseDTO data = paymentService.getCheckoutData(uuid);
+            return ResponseEntity.ok(data);
+        }
 
     /**
      * CALLBACK ENDPOINT

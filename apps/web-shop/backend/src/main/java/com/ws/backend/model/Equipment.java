@@ -21,7 +21,7 @@ public class Equipment {
     private EquipmentType equipmentType;
 
     @Column(nullable = false)
-    private Boolean isAvailable;
+    private Boolean isAvailable; // logicko brisanje
 
     public Double getPricePerDay() {
         return pricePerDay;

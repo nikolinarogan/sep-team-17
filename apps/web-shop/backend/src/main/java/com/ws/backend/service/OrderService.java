@@ -1,0 +1,208 @@
+package com.ws.backend.service;
+
+import com.ws.backend.dto.OrderRequestDTO;
+import com.ws.backend.dto.PaymentResponseDTO;
+import com.ws.backend.dto.PspRequestDTO;
+import com.ws.backend.model.*;
+import com.ws.backend.repository.*;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+
+@Service
+public class OrderService {
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private VehicleRepository vehicleRepository;
+
+    @Autowired
+    private InsuranceRepository insuranceRepository;
+
+    @Autowired
+    private EquipmentRepository equipmentRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PaymentTransactionRepository transactionRepository;
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${webshop.merchant.id}")
+    private String merchantId;
+
+    @Value("${webshop.merchant.password}")
+    private String merchantPassword;
+
+    @Value("${psp.api.url}")
+    private String pspApiUrl;
+    static {
+        HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
+            public boolean verify(String hostname, SSLSession session) {
+                return true; // Dozvoli sve nazive (samo za dev!)
+            }
+        });
+    }
+    @Transactional
+    public PaymentResponseDTO createOrder(OrderRequestDTO request, Long userId) {
+
+        AppUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+
+        Order order = new Order();
+        order.setUser(user);
+        order.setCurrency(request.getCurrency() != null ? request.getCurrency() : "EUR");
+        order.setOrderStatus(OrderStatus.PENDING);
+        order.setCreatedAt(LocalDateTime.now());
+
+        if (request.getVehicleId() != null) {
+            if (!request.hasDates()) {
+                throw new IllegalArgumentException("Start date and end date are required for vehicle orders");
+            }
+            if (!request.isDateRangeValid()) {
+                throw new IllegalArgumentException("End date must be after start date");
+            }
+            if (request.getStartDate().isBefore(LocalDateTime.now())) {
+                throw new IllegalArgumentException("Start date cannot be in the past");
+            }
+
+            Vehicle vehicle = vehicleRepository.findById(request.getVehicleId())
+                    .orElseThrow(() -> new RuntimeException("Vehicle not found with id: " + request.getVehicleId()));
+
+            if (vehicle.getAvailable() == null || !vehicle.getAvailable()) {
+                throw new IllegalStateException("Vehicle is not available");
+            }
+
+            // Proveri da li postoji konfliktna porudžbina (samo CONFIRMED porudžbine)
+            boolean isConflict = orderRepository.existsConflictingVehicleOrder(
+                    OrderType.VEHICLE,
+                    vehicle.getId(),
+                    OrderStatus.CONFIRMED,
+                    request.getStartDate(),
+                    request.getEndDate());
+            if (isConflict) {
+                throw new IllegalStateException("Vehicle is already booked for this period");
+            }
+
+            order.setType(OrderType.VEHICLE);
+            order.setVehicle(vehicle);
+            order.setStartDate(request.getStartDate());
+            order.setEndDate(request.getEndDate());
+
+            order.setPricePerDay(vehicle.getPricePerDay());
+
+            long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
+            order.setTotalAmount(vehicle.getPricePerDay() * days);
+
+        } else if (request.getInsuranceId() != null) {
+            Insurance insurance = insuranceRepository.findById(request.getInsuranceId())
+                    .orElseThrow(() -> new RuntimeException("Insurance not found with id: " + request.getInsuranceId()));
+
+            if (insurance.getIsAvailable() == null || !insurance.getIsAvailable()) {
+                throw new IllegalStateException("Insurance is not available");
+            }
+
+            order.setType(OrderType.INSURANCE);
+            order.setInsurance(insurance);
+
+            order.setPrice(insurance.getPrice());
+
+            order.setTotalAmount(insurance.getPrice());
+
+        } else if (request.getEquipmentId() != null) {
+            if (!request.hasDates()) {
+                throw new IllegalArgumentException("Start date and end date are required for equipment orders");
+            }
+            if (!request.isDateRangeValid()) {
+                throw new IllegalArgumentException("End date must be after start date");
+            }
+            if (request.getStartDate().isBefore(LocalDateTime.now())) {
+                throw new IllegalArgumentException("Start date cannot be in the past");
+            }
+
+            Equipment equipment = equipmentRepository.findById(request.getEquipmentId())
+                    .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + request.getEquipmentId()));
+
+            if (equipment.getAvailable() == null || !equipment.getAvailable()) {
+                throw new IllegalStateException("Equipment is not available");
+            }
+
+            order.setType(OrderType.EQUIPMENT);
+            order.setEquipment(equipment);
+            order.setStartDate(request.getStartDate());
+            order.setEndDate(request.getEndDate());
+
+            order.setPricePerDay(equipment.getPricePerDay());
+
+            long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
+            order.setTotalAmount(equipment.getPricePerDay() * days);
+        }
+        order = orderRepository.save(order);
+
+        PaymentTransaction tx = new PaymentTransaction();
+        tx.setOrder(order);
+        tx.setMerchantOrderId( "TX-" + order.getId() + "-" + System.currentTimeMillis());
+        tx.setStatus(OrderStatus.PENDING);
+        tx.setCreatedAt(LocalDateTime.now());
+        transactionRepository.save(tx);
+
+
+
+        PspRequestDTO pspRequest = new PspRequestDTO();
+        pspRequest.setMerchantId(merchantId);
+        pspRequest.setMerchantPassword(merchantPassword);
+        pspRequest.setAmount(BigDecimal.valueOf(order.getTotalAmount()));
+        pspRequest.setCurrency(order.getCurrency());
+        pspRequest.setMerchantOrderId(tx.getMerchantOrderId());
+        pspRequest.setMerchantTimestamp(tx.getCreatedAt());
+
+        // URL-ovi tvog Angulara
+        pspRequest.setSuccessUrl("https://localhost:4200/payment-success");
+        pspRequest.setFailedUrl("https://localhost:4200/payment-failed");
+        pspRequest.setErrorUrl("https://localhost:4200/payment-error");
+
+
+        try {
+            ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
+                    pspApiUrl, pspRequest, PaymentResponseDTO.class);
+
+            // 5. SAČUVAJ MARIJIN ID TRANSAKCIJE (pspPaymentId)
+            PaymentResponseDTO pspData = response.getBody();
+            if (pspData != null) {
+                tx.setPspPaymentId(pspData.getPaymentId());
+                transactionRepository.save(tx);
+            }
+
+            return pspData; // Vraćaš URL i ID tvom kontroleru
+
+        } catch (Exception e) {
+            // Ako PSP ne odgovori, poništavamo narudžbinu (ili stavljamo u ERROR)
+            order.setOrderStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+            throw new RuntimeException("PSP is not reachable: " + e.getMessage());
+        }
+    }
+
+    private void saveInitialTransaction(Order order) {
+        PaymentTransaction tx = new PaymentTransaction();
+        tx.setOrder(order);
+        tx.setMerchantOrderId( "TX-" + order.getId() + "-" + System.currentTimeMillis());
+        tx.setStatus(OrderStatus.PENDING);
+        tx.setCreatedAt(LocalDateTime.now());
+        transactionRepository.save(tx);
+    }
+}

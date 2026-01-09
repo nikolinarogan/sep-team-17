@@ -75,7 +75,7 @@ public class DataInitializer implements CommandLineRunner {
         if (merchantRepository.count() == 0) {
             Merchant m = new Merchant();
             m.setName("Rent A Car Demo");
-            m.setWebShopUrl("http://localhost:4200"); // URL Web Shopa
+            m.setWebShopUrl("https://localhost:4200"); // URL Web Shopa
             m.setMerchantId("shop_123");       // API KEY
 
             m.setMerchantPassword(passwordEncoder.encode("shop_pass"));

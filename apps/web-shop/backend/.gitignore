@@ -31,3 +31,14 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# SSL i Sertifikati
+*.key
+*.crt
+*.pem
+*.csr
+*.srl
+*.cer
+*.p12
+*.jks
+*.ext

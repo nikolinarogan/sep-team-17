@@ -7,7 +7,7 @@ import { Equipment } from '../models/equipment.models';
   providedIn: 'root'
 })
 export class EquipmentService {
-  private apiUrl = 'http://localhost:8080/equipment';
+  private apiUrl = 'https://localhost:8080/equipment';
 
   constructor(private http: HttpClient) {}
 
