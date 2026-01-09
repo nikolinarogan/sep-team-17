@@ -1,23 +1,33 @@
     package controller;
 
-    import dto.CheckoutResponseDTO;
-    import dto.PaymentRequestDTO;
-    import dto.PaymentResponseDTO;
-    import service.PaymentService;
-    import jakarta.validation.Valid;
-    import org.springframework.http.ResponseEntity;
-    import org.springframework.web.bind.annotation.*;
+import dto.CheckoutResponseDTO;
+import dto.PaymentRequestDTO;
+import dto.PaymentResponseDTO;
+import model.PaymentTransaction;
+import repository.PaymentTransactionRepository;
+import service.CardPaymentService;
+import service.PaymentService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
-    @RestController
-    @RequestMapping("/api/payments")
-    @CrossOrigin(origins = "*")
-    public class PaymentController {
+import java.util.HashMap;
+import java.util.Map;
 
-        private final PaymentService paymentService;
+@RestController
+@RequestMapping("/api/payments")
+@CrossOrigin(origins = "https://localhost:4201", allowedHeaders = "*", allowCredentials = "true")
+public class PaymentController {
 
-        public PaymentController(PaymentService paymentService) {
-            this.paymentService = paymentService;
-        }
+    private final PaymentService paymentService;
+    private final CardPaymentService cardPaymentService;
+    private final PaymentTransactionRepository paymentTransactionRepository;
+
+    public PaymentController(PaymentService paymentService, CardPaymentService cardPaymentService, PaymentTransactionRepository paymentTransactionRepository) {
+        this.paymentService = paymentService;
+        this.cardPaymentService = cardPaymentService;
+        this.paymentTransactionRepository = paymentTransactionRepository;
+    }
 
         /**
          * KORAK 1: Inicijalizacija plaćanja
@@ -47,13 +57,28 @@
             return ResponseEntity.ok(data);
         }
 
-        /**
-         * CALLBACK ENDPOINT
-         * Ovdje gađaju Bank Service i QR Service kad završe posao
-         */
-        @PutMapping("/status")
-        public ResponseEntity<Void> updateStatus(@RequestBody dto.PaymentCallbackDTO callback) {
-            paymentService.finaliseTransaction(callback);
-            return ResponseEntity.ok().build();
-        }
+    /**
+     * CALLBACK ENDPOINT
+     * Ovdje gađaju Bank Service i QR Service kad završe posao
+     */
+    @PutMapping("/status")
+    public ResponseEntity<Void> updateStatus(@RequestBody dto.PaymentCallbackDTO callback) {
+        paymentService.finaliseTransaction(callback);
+        return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/checkout/{uuid}/card")
+    public ResponseEntity<?> initCardPayment(@PathVariable String uuid) {
+        // 1. Nađi transakciju u bazi
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
+
+        // 2. Pozovi servis da kontaktira Banku
+        String bankUrl = cardPaymentService.initializePayment(tx);
+
+        // 3. Vrati URL Angularu
+        Map<String, String> response = new HashMap<>();
+        response.put("paymentUrl", bankUrl);
+        return ResponseEntity.ok(response);
+    }
+}

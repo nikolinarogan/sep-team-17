@@ -43,15 +43,51 @@ export class Checkout implements OnInit{
 
   selectMethod(method: PaymentMethod) {
     console.log("Korisnik bira:", method.name);
+
+    if (method.name === 'CARD') { 
+        this.isLoading = true;
+        
+        this.paymentService.initiateCardPayment(this.uuid).subscribe({
+  next: (response: any) => {
+    // 1. OVO JE KLJUČNO: Pogledaj u konzolu šta je tačno stiglo
+    console.log("Šta je stiglo od beka?", response);
+
+    // 2. Provera strukture
+    // Ako je Java vratila mapu, URL je verovatno u 'response.paymentUrl'
+    // Ali ako je Java vratila čist string, onda je URL sam 'response'
     
-    // OVDJE REDIREKTUJEMO NA BANKU/PAYPAL
-    // Logika: Servis URL + ID naše transakcije da bi banka znala šta naplaćuje
-    // Primjer: http://localhost:8082/api/card/payment/123-uuid-456
-    
-    // PRIVREMENO: Samo alert
-    alert(`Redirekcija na ${method.name} servis:\nURL: ${method.serviceUrl}`);
-    
-    // window.location.href = `${method.serviceUrl}?paymentId=${this.uuid}`;
+    let urlZaBanku = '';
+
+    if (response && response.paymentUrl) {
+        // Slučaj A: Bekend vratio JSON { "paymentUrl": "http..." }
+        urlZaBanku = response.paymentUrl;
+    } else if (typeof response === 'string') {
+        // Slučaj B: Bekend vratio običan tekst "http..."
+        urlZaBanku = response;
+    } else {
+        console.error("Nepoznat format odgovora!", response);
+        return; // Prekini ako nema URL-a
+    }
+
+    console.log("Preusmeravam na:", urlZaBanku);
+
+    // 3. Izvrši preusmeravanje SAMO ako je URL validan string
+    if (urlZaBanku && urlZaBanku.startsWith('http')) {
+        window.location.href = urlZaBanku;
+    } else {
+        alert("Greška: Nije stigao validan URL od banke!");
+    }
+  },
+  error: (err) => {
+    console.error("Greška:", err);
+    this.errorMessage = "Greška pri komunikaciji sa bankom.";
+    this.isLoading = false;
+  }
+});
+    } else {
+        // Za ostale metode (PayPal, Crypto, QR) koje još nisu gotove
+        alert(`Metoda ${method.name} još nije implementirana.`);
+    }
   }
 
 }

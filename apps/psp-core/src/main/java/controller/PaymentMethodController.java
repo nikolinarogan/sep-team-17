@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/payment-methods")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "https://localhost:4201", allowedHeaders = "*", allowCredentials = "true")
 public class PaymentMethodController {
 
     private final PaymentMethodRepository paymentMethodRepository;

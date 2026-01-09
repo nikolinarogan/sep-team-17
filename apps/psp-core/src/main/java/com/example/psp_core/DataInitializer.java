@@ -54,7 +54,7 @@ public class DataInitializer implements CommandLineRunner {
 
         // 2. KREIRANJE GLOBALNIH METODA PLAĆANJA
         if (paymentMethodRepository.count() == 0) {
-            createMethod("CARD", "http://localhost:8082/api/card");   // Banka servis
+            createMethod("CARD", "http://localhost:8082/api/bank/card");   // Banka servis
             createMethod("QR", "http://localhost:8082/api/qr");       // Banka servis (IPS)
             createMethod("PAYPAL", "http://localhost:8083/api/paypal"); // PayPal simulacija
             createMethod("CRYPTO", "http://localhost:8084/api/crypto"); // Crypto simulacija
@@ -88,8 +88,10 @@ public class DataInitializer implements CommandLineRunner {
 
             // a) Dodajemo CARD
             Map<String, String> cardCreds = new HashMap<>();
-            cardCreds.put("bankMerchantId", "111122223333");
-            cardCreds.put("bankPassword", "bank_secret");
+            // Ovi ključevi (merchantId, merchantPassword) moraju biti isti oni koje
+            // tvoj CardPaymentService.java čita iz mape!
+            cardCreds.put("merchantId", "prodavac123");     // <--- OVO JE IZ BANKE
+            cardCreds.put("merchantPassword", "sifra123");  // <--- OVO JE IZ BANKE
             addSubscription(m, "CARD", cardCreds);
 
             // b) Dodajemo QR
@@ -100,22 +102,16 @@ public class DataInitializer implements CommandLineRunner {
             System.out.println("✅ PRETPLATE KREIRANE (Shop ima CARD i QR)");
         }
         if (paymentTransactionRepository.findByUuid("test-transakcija-123").isEmpty()) {
-
             PaymentTransaction t = new PaymentTransaction();
-
             t.setMerchantId("shop_123");
-
             t.setMerchantOrderId("narudzbina-001");
             t.setAmount(new BigDecimal("150.00"));
             t.setCurrency("EUR");
-
             t.setStatus(TransactionStatus.CREATED);
-
-            t.setUuid("test-transakcija-123");
-
-            t.setSuccessUrl("https://localhost:4200/success");
-            t.setFailedUrl("https://localhost:4200/failed");
-            t.setErrorUrl("https://localhost:4200/error");
+            t.setUuid("test-transakcija-123"); // ID koji kucaš u URL
+            t.setSuccessUrl("http://localhost:4200/success");
+            t.setFailedUrl("http://localhost:4200/failed");
+            t.setErrorUrl("http://localhost:4200/error");
 
             paymentTransactionRepository.save(t);
             System.out.println("✅ TEST TRANSAKCIJA KREIRANA: UUID = test-transakcija-123");
