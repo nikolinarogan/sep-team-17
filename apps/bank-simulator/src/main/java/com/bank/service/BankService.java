@@ -49,7 +49,7 @@ public class BankService {
         transactionRepository.save(tx);
 
         // Vraćamo URL ka našem HTML-u
-        String paymentUrl = "http://localhost:8082/pay.html?paymentId=" + internalPaymentId;
+        String paymentUrl = "https://localhost:8082/pay.html?paymentId=" + internalPaymentId;
 
         return new PspPaymentResponseDTO(paymentUrl, internalPaymentId);
     }
