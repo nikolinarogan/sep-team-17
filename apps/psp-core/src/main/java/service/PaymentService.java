@@ -144,6 +144,34 @@ public class PaymentService {
         // 4. Snimi promjene
         transactionRepository.save(tx);
 
+
+
+        // MARO, OVAKO NESTO TREBA DA ODRADIS, DA BI MI POSLALA OVAJ DTO. POGLEDAJ KAKO SAM U SHOPU NAPRAVILA OVAJ REST ZA KOMUNIKACIJU
+        // MOZES ISKORISITI ISTI, SAMO DODAJ SVE ONO ZA SERTIFIKATE....
+// u bazi cuvaj ono za url za bekend napisala sam negdje u komentaru u modelu
+
+//        String callbackUrl;
+//        if (tx.getStatus() == TransactionStatus.SUCCESS) {
+//            callbackUrl = tx.getSuccessUrl();
+//        } else if (tx.getStatus() == TransactionStatus.FAILED ||
+//                tx.getStatus() == TransactionStatus.INSUFFICIENT_FUNDS) {
+//            callbackUrl = tx.getFailedUrl();
+//        } else {
+//            callbackUrl = tx.getErrorUrl();
+//        }
+//
+//// Kreiraj DTO sa podacima ii treba mi paymentMethod
+//        PaymentStatusDTO statusDTO = new PaymentStatusDTO();
+//        statusDTO.setMerchantOrderId(tx.getMerchantOrderId());
+//        statusDTO.setPspTransactionId(tx.getUuid());
+//        statusDTO.setStatus(tx.getStatus().toString());
+//        statusDTO.setTimestamp(LocalDateTime.now());
+//
+//// Pozovi web shop API
+//        restTemplate.postForEntity(callbackUrl, statusDTO, Void.class);
+        // 3 urla koja sam ti poslala u dto su linkovi od stranica web shopa na frontu. Ili ih vrati sebi na fe pa tamo preusmjeri
+        // ili vrati 3xx status sa linkom, ovaj kod iznad provjeri nisam sihurna
+// O
         System.out.println("Transakcija " + tx.getUuid() + " finalizovana sa statusom: " + tx.getStatus());
     }
 }

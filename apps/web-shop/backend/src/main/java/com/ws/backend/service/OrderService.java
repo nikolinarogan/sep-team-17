@@ -2,6 +2,7 @@ package com.ws.backend.service;
 
 import com.ws.backend.dto.OrderRequestDTO;
 import com.ws.backend.dto.PaymentResponseDTO;
+import com.ws.backend.dto.PaymentStatusDTO;
 import com.ws.backend.dto.PspRequestDTO;
 import com.ws.backend.model.*;
 import com.ws.backend.repository.*;
@@ -50,6 +51,10 @@ public class OrderService {
 
     @Value("${psp.api.url}")
     private String pspApiUrl;
+
+    @Value("${webshop.frontend.url}")
+    private String apiBase;
+
     static {
         HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
             public boolean verify(String hostname, SSLSession session) {
@@ -170,17 +175,15 @@ public class OrderService {
         pspRequest.setMerchantOrderId(tx.getMerchantOrderId());
         pspRequest.setMerchantTimestamp(tx.getCreatedAt());
 
-        // URL-ovi tvog Angulara
-        pspRequest.setSuccessUrl("https://localhost:4200/payment-success");
-        pspRequest.setFailedUrl("https://localhost:4200/payment-failed");
-        pspRequest.setErrorUrl("https://localhost:4200/payment-error");
-
+        pspRequest.setSuccessUrl(apiBase + "/payment-success?orderId=" + tx.getMerchantOrderId());
+        pspRequest.setFailedUrl(apiBase + "/payment-failed?orderId=" + tx.getMerchantOrderId());
+        pspRequest.setErrorUrl(apiBase + "/payment-error?orderId=" + tx.getMerchantOrderId());
 
         try {
             ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
                     pspApiUrl, pspRequest, PaymentResponseDTO.class);
 
-            // 5. SAČUVAJ MARIJIN ID TRANSAKCIJE (pspPaymentId)
+            // 5. SAČUVAJ psp ID TRANSAKCIJE (pspPaymentId)
             PaymentResponseDTO pspData = response.getBody();
             if (pspData != null) {
                 tx.setPspPaymentId(pspData.getPaymentId());
@@ -191,18 +194,109 @@ public class OrderService {
 
         } catch (Exception e) {
             // Ako PSP ne odgovori, poništavamo narudžbinu (ili stavljamo u ERROR)
-            order.setOrderStatus(OrderStatus.CANCELLED);
+            order.setOrderStatus(OrderStatus.ERROR);
             orderRepository.save(order);
             throw new RuntimeException("PSP is not reachable: " + e.getMessage());
         }
     }
 
-    private void saveInitialTransaction(Order order) {
-        PaymentTransaction tx = new PaymentTransaction();
-        tx.setOrder(order);
-        tx.setMerchantOrderId( "TX-" + order.getId() + "-" + System.currentTimeMillis());
-        tx.setStatus(OrderStatus.PENDING);
-        tx.setCreatedAt(LocalDateTime.now());
+    @Transactional
+    public void processCallback(PaymentStatusDTO statusDTO, OrderStatus targetStatus) {
+        // 1. Pronalaženje transakcije
+        PaymentTransaction tx = transactionRepository
+                .findByMerchantOrderId(statusDTO.getMerchantOrderId())
+                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + statusDTO.getMerchantOrderId()));
+
+        // 2. Provera da li je transakcija već završena (Idempotency check)
+        if (tx.getStatus() == OrderStatus.CONFIRMED) {
+            return; // Već je obrađeno, ne radimo ništa
+        }
+
+        // 3. Ažuriranje transakcije podacima iz PSP-a
+        tx.setStatus(targetStatus);
+        tx.setPaymentMethod(statusDTO.getPaymentMethod());
         transactionRepository.save(tx);
+
+        // 4. Ažuriranje narudžbine
+        Order order = tx.getOrder();
+        order.setOrderStatus(targetStatus);
+
+        orderRepository.save(order);
+    }
+
+    /**
+     * Dobavljanje svih narudžbina korisnika sa detaljima transakcije
+     * Razdvaja aktivne i prošle usluge
+     */
+    public java.util.List<com.ws.backend.dto.OrderHistoryDTO> getUserOrders(Long userId) {
+        java.util.List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        LocalDateTime now = LocalDateTime.now();
+        
+        return orders.stream().map(order -> {
+            com.ws.backend.dto.OrderHistoryDTO dto = new com.ws.backend.dto.OrderHistoryDTO();
+            
+            // Order osnovni podaci
+            dto.setOrderId(order.getId());
+            dto.setType(order.getType());
+            dto.setOrderStatus(order.getOrderStatus());
+            dto.setTotalAmount(order.getTotalAmount());
+            dto.setCurrency(order.getCurrency());
+            dto.setCreatedAt(order.getCreatedAt());
+            dto.setCompletedAt(order.getCompletedAt());
+            dto.setStartDate(order.getStartDate());
+            dto.setEndDate(order.getEndDate());
+            
+            // Vehicle detalji
+            if (order.getVehicle() != null) {
+                dto.setVehicleId(order.getVehicle().getId());
+                dto.setVehicleModel(order.getVehicle().getModel());
+                dto.setVehicleImageUrl(order.getVehicle().getImageUrl());
+                dto.setPricePerDay(order.getPricePerDay());
+            }
+            
+            // Equipment detalji
+            if (order.getEquipment() != null) {
+                dto.setEquipmentId(order.getEquipment().getId());
+                dto.setEquipmentType(order.getEquipment().getEquipmentType() != null ? 
+                    order.getEquipment().getEquipmentType().toString() : null);
+            }
+            
+            // Insurance detalji
+            if (order.getInsurance() != null) {
+                dto.setInsuranceId(order.getInsurance().getId());
+                dto.setInsuranceType(order.getInsurance().getType() != null ? 
+                    order.getInsurance().getType().toString() : null);
+                dto.setInsurancePrice(order.getPrice());
+            }
+            
+            // PaymentTransaction detalji - pronađi transakciju po order ID-u
+            PaymentTransaction tx = transactionRepository.findByOrderId(order.getId())
+                .orElse(null);
+            
+            if (tx != null) {
+                dto.setMerchantOrderId(tx.getMerchantOrderId());
+                dto.setPspPaymentId(tx.getPspPaymentId());
+                dto.setPaymentMethod(tx.getPaymentMethod());
+                dto.setPaymentStatus(tx.getStatus());
+                dto.setPaymentCreatedAt(tx.getCreatedAt());
+            }
+            
+            // Određivanje da li je usluga aktivna
+            boolean isActive = false;
+            if (order.getOrderStatus() == OrderStatus.CONFIRMED) {
+                if (order.getType() == OrderType.VEHICLE || order.getType() == OrderType.EQUIPMENT) {
+                    // Za vozilo i opremu: aktivno ako je trenutni datum između startDate i endDate
+                    if (order.getStartDate() != null && order.getEndDate() != null) {
+                        isActive = !now.isBefore(order.getStartDate()) && !now.isAfter(order.getEndDate());
+                    }
+                } else if (order.getType() == OrderType.INSURANCE) {
+                    // Za osiguranje: sve CONFIRMED narudžbine su aktivne (trajno važe)
+                    isActive = true;
+                }
+            }
+            dto.setActive(isActive);
+            
+            return dto;
+        }).collect(java.util.stream.Collectors.toList());
     }
 }

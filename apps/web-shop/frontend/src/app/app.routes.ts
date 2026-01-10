@@ -11,15 +11,25 @@ import { EquipmentFormComponent } from '../components/equipment-form/equipment-f
 import { InsuranceComponent } from '../components/insurance/insurance';
 import { InsuranceFormComponent } from '../components/insurance-form/insurance-form';
 import { ServicesComponent } from '../components/services/services';
+import { PaymentSuccessComponent } from '../components/payment-success/payment-success';
+import { PaymentFailedComponent } from '../components/payment-failed/payment-failed';
+import { PaymentErrorComponent } from '../components/payment-error/payment-error';
+import { OrderHistoryComponent } from '../components/order-history/order-history';
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
+import { userGuard } from './guards/user.guard';
+import { initialGuard } from './guards/initial.guard';
 
 export const routes: Routes = [
   { path: 'home', component: LandingComponent, canActivate: [authGuard] },
   { path: 'services', component: ServicesComponent, canActivate: [authGuard] },
+  { path: 'orders', component: OrderHistoryComponent, canActivate: [userGuard] },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'change-password', component: ChangePasswordComponent },
+  { path: 'payment-success', component: PaymentSuccessComponent },
+  { path: 'payment-failed', component: PaymentFailedComponent },
+  { path: 'payment-error', component: PaymentErrorComponent },
   { path: 'vehicles', component: VehiclesComponent, canActivate: [adminGuard] },
   { path: 'vehicles/new', component: VehicleFormComponent, canActivate: [adminGuard] },
   { path: 'vehicles/edit/:id', component: VehicleFormComponent, canActivate: [adminGuard] },
@@ -29,5 +39,5 @@ export const routes: Routes = [
   { path: 'insurance', component: InsuranceComponent, canActivate: [adminGuard] },
   { path: 'insurance/new', component: InsuranceFormComponent, canActivate: [adminGuard] },
   { path: 'insurance/edit/:id', component: InsuranceFormComponent, canActivate: [adminGuard] },
-  { path: '', redirectTo: '/register', pathMatch: 'full' },
+  { path: '', canActivate: [initialGuard], component: LoginComponent },
 ];

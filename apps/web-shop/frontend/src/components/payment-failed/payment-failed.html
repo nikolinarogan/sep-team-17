@@ -1,0 +1,33 @@
+<div class="payment-status-container">
+  <div class="status-card failed">
+    <div class="icon-container">
+      <svg class="failed-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    
+    <h1>Payment Failed</h1>
+    <p class="status-message">Your payment could not be processed. Please try again.</p>
+    
+    <div class="order-info" *ngIf="orderId">
+      <p class="order-id">Order ID: <strong>{{ orderId }}</strong></p>
+    </div>
+    
+    <div class="error-details">
+      <p>Possible reasons:</p>
+      <ul>
+        <li>Insufficient funds</li>
+        <li>Invalid card details</li>
+        <li>Payment gateway error</li>
+        <li>Transaction timeout</li>
+      </ul>
+    </div>
+    
+    <div class="action-buttons">
+      <button class="btn-primary" (click)="tryAgain()">Try Again</button>
+      <button class="btn-secondary" (click)="goToHome()">Go to Home</button>
+    </div>
+  </div>
+</div>
+

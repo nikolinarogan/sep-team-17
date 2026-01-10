@@ -1,0 +1,111 @@
+<div class="order-history-container">
+  <div class="header">
+    <h1>My Orders</h1>
+    <p class="subtitle">View your purchase history and active services</p>
+  </div>
+
+  <div class="tabs">
+    <button 
+      class="tab-button" 
+      [class.active]="activeTab === 'all'"
+      (click)="activeTab = 'all'">
+      All Orders ({{ allOrders.length }})
+    </button>
+    <button 
+      class="tab-button" 
+      [class.active]="activeTab === 'active'"
+      (click)="activeTab = 'active'">
+      Active Services ({{ activeOrders.length }})
+    </button>
+    <button 
+      class="tab-button" 
+      [class.active]="activeTab === 'past'"
+      (click)="activeTab = 'past'">
+      Past Orders ({{ pastOrders.length }})
+    </button>
+  </div>
+
+  <div class="error-message" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <div class="loading" *ngIf="isLoading">
+    <p>Loading orders...</p>
+  </div>
+
+  <div class="orders-list" *ngIf="!isLoading && getOrdersToDisplay().length > 0">
+    <div class="order-card" *ngFor="let order of getOrdersToDisplay()">
+      <div class="order-header">
+        <div class="service-info">
+          <img 
+            [src]="getServiceImage(order)" 
+            [alt]="getServiceName(order)"
+            class="service-image"
+            *ngIf="order.type === 'VEHICLE'">
+          <div class="service-details">
+            <h3>{{ getServiceName(order) }}</h3>
+            <span class="order-type">{{ order.type }}</span>
+          </div>
+        </div>
+        <div class="order-status">
+          <span [class]="'status-badge ' + getStatusClass(order.orderStatus)">
+            {{ getStatusLabel(order.orderStatus) }}
+          </span>
+          <span class="active-badge" *ngIf="order.isActive">Active</span>
+        </div>
+      </div>
+
+      <div class="order-body">
+        <div class="order-details">
+          <div class="detail-row">
+            <span class="label">Order ID:</span>
+            <span class="value">#{{ order.id }}</span>
+          </div>
+          
+          <div class="detail-row" *ngIf="order.merchantOrderId">
+            <span class="label">Transaction ID:</span>
+            <span class="value">{{ order.merchantOrderId }}</span>
+          </div>
+
+          <div class="detail-row" *ngIf="order.startDate && order.endDate">
+            <span class="label">Period:</span>
+            <span class="value">
+              {{ formatDate(order.startDate) }} - {{ formatDate(order.endDate) }}
+            </span>
+          </div>
+
+          <div class="detail-row" *ngIf="order.type === 'INSURANCE'">
+            <span class="label">Insurance Type:</span>
+            <span class="value">{{ order.insuranceType }}</span>
+          </div>
+
+          <div class="detail-row">
+            <span class="label">Total Amount:</span>
+            <span class="value amount">{{ order.totalAmount }} {{ order.currency }}</span>
+          </div>
+
+          <div class="detail-row" *ngIf="order.paymentMethod">
+            <span class="label">Payment Method:</span>
+            <span class="value">{{ order.paymentMethod }}</span>
+          </div>
+
+          <div class="detail-row">
+            <span class="label">Order Date:</span>
+            <span class="value">{{ formatDate(order.createdAt) }}</span>
+          </div>
+
+          <div class="detail-row" *ngIf="order.completedAt">
+            <span class="label">Completed:</span>
+            <span class="value">{{ formatDate(order.completedAt) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="empty-state" *ngIf="!isLoading && getOrdersToDisplay().length === 0">
+    <p>No orders found.</p>
+    <a routerLink="/services" class="btn-primary">Browse Services</a>
+  </div>
+</div>
+
