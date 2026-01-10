@@ -1,5 +1,5 @@
 package com.ws.backend.model;
 
 public enum OrderStatus {
-    PENDING, CONFIRMED, CANCELLED
+    PENDING, CONFIRMED, CANCELLED, ERROR
 }

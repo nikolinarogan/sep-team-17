@@ -41,10 +41,6 @@ public class PaymentTransaction {
     // Način plaćanja (popunjava se kasnije kad PSP javi mozda prebacim na enum)
     private String paymentMethod;
 
-//    // Opciono: Globalni ID iz banke ako ga dobijem
-//    private String globalTransactionId;
-
-
     public Long getId() {
         return id;
     }

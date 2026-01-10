@@ -1,0 +1,34 @@
+<div class="payment-status-container">
+  <div class="status-card error">
+    <div class="icon-container">
+      <svg class="error-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    
+    <h1>Payment Error</h1>
+    <p class="status-message">An error occurred while processing your payment. Please try again or contact support.</p>
+    
+    <div class="order-info" *ngIf="orderId">
+      <p class="order-id">Order ID: <strong>{{ orderId }}</strong></p>
+    </div>
+    
+    <div class="error-details">
+      <p>What you can do:</p>
+      <ul>
+        <li>Try the payment again</li>
+        <li>Check your internet connection</li>
+        <li>Verify your payment method</li>
+        <li>Contact our support team if the problem persists</li>
+      </ul>
+    </div>
+    
+    <div class="action-buttons">
+      <button class="btn-primary" (click)="tryAgain()">Try Again</button>
+      <button class="btn-secondary" (click)="contactSupport()">Contact Support</button>
+      <button class="btn-tertiary" (click)="goToHome()">Go to Home</button>
+    </div>
+  </div>
+</div>
+

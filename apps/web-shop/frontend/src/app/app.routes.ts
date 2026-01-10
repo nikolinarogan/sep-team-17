@@ -11,6 +11,9 @@ import { EquipmentFormComponent } from '../components/equipment-form/equipment-f
 import { InsuranceComponent } from '../components/insurance/insurance';
 import { InsuranceFormComponent } from '../components/insurance-form/insurance-form';
 import { ServicesComponent } from '../components/services/services';
+import { PaymentSuccessComponent } from '../components/payment-success/payment-success';
+import { PaymentFailedComponent } from '../components/payment-failed/payment-failed';
+import { PaymentErrorComponent } from '../components/payment-error/payment-error';
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
 
@@ -20,6 +23,9 @@ export const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'change-password', component: ChangePasswordComponent },
+  { path: 'payment-success', component: PaymentSuccessComponent },
+  { path: 'payment-failed', component: PaymentFailedComponent },
+  { path: 'payment-error', component: PaymentErrorComponent },
   { path: 'vehicles', component: VehiclesComponent, canActivate: [adminGuard] },
   { path: 'vehicles/new', component: VehicleFormComponent, canActivate: [adminGuard] },
   { path: 'vehicles/edit/:id', component: VehicleFormComponent, canActivate: [adminGuard] },
