@@ -12,4 +12,9 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
      * @return Optional koji sadrži transakciju ako postoji
      */
     Optional<PaymentTransaction> findByMerchantOrderId(String merchantOrderId);
+    
+    /**
+     * Pronalazi transakciju na osnovu Order ID-a
+     */
+    Optional<PaymentTransaction> findByOrderId(Long orderId);
 }

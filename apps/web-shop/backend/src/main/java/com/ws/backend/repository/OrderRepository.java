@@ -30,4 +30,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
+    
+    /**
+     * Pronalazi sve narudžbine za određenog korisnika, sortirane po datumu kreiranja (najnovije prvo)
+     */
+    @Query("SELECT o FROM Order o WHERE o.user.id = :userId ORDER BY o.createdAt DESC")
+    java.util.List<Order> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
 }

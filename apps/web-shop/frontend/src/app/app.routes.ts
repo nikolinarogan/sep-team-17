@@ -14,12 +14,16 @@ import { ServicesComponent } from '../components/services/services';
 import { PaymentSuccessComponent } from '../components/payment-success/payment-success';
 import { PaymentFailedComponent } from '../components/payment-failed/payment-failed';
 import { PaymentErrorComponent } from '../components/payment-error/payment-error';
+import { OrderHistoryComponent } from '../components/order-history/order-history';
 import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
+import { userGuard } from './guards/user.guard';
+import { initialGuard } from './guards/initial.guard';
 
 export const routes: Routes = [
   { path: 'home', component: LandingComponent, canActivate: [authGuard] },
   { path: 'services', component: ServicesComponent, canActivate: [authGuard] },
+  { path: 'orders', component: OrderHistoryComponent, canActivate: [userGuard] },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'change-password', component: ChangePasswordComponent },
@@ -35,5 +39,5 @@ export const routes: Routes = [
   { path: 'insurance', component: InsuranceComponent, canActivate: [adminGuard] },
   { path: 'insurance/new', component: InsuranceFormComponent, canActivate: [adminGuard] },
   { path: 'insurance/edit/:id', component: InsuranceFormComponent, canActivate: [adminGuard] },
-  { path: '', redirectTo: '/register', pathMatch: 'full' },
+  { path: '', canActivate: [initialGuard], component: LoginComponent },
 ];

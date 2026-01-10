@@ -78,6 +78,16 @@ form > .error-message {
   border-radius: 6px;
 }
 
+.info-message {
+  font-size: 14px;
+  margin-bottom: 15px;
+  padding: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  color: #1e40af;
+}
+
 .btn-primary {
   width: 100%;
   padding: 12px;

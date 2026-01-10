@@ -223,4 +223,80 @@ public class OrderService {
 
         orderRepository.save(order);
     }
+
+    /**
+     * Dobavljanje svih narudžbina korisnika sa detaljima transakcije
+     * Razdvaja aktivne i prošle usluge
+     */
+    public java.util.List<com.ws.backend.dto.OrderHistoryDTO> getUserOrders(Long userId) {
+        java.util.List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        LocalDateTime now = LocalDateTime.now();
+        
+        return orders.stream().map(order -> {
+            com.ws.backend.dto.OrderHistoryDTO dto = new com.ws.backend.dto.OrderHistoryDTO();
+            
+            // Order osnovni podaci
+            dto.setOrderId(order.getId());
+            dto.setType(order.getType());
+            dto.setOrderStatus(order.getOrderStatus());
+            dto.setTotalAmount(order.getTotalAmount());
+            dto.setCurrency(order.getCurrency());
+            dto.setCreatedAt(order.getCreatedAt());
+            dto.setCompletedAt(order.getCompletedAt());
+            dto.setStartDate(order.getStartDate());
+            dto.setEndDate(order.getEndDate());
+            
+            // Vehicle detalji
+            if (order.getVehicle() != null) {
+                dto.setVehicleId(order.getVehicle().getId());
+                dto.setVehicleModel(order.getVehicle().getModel());
+                dto.setVehicleImageUrl(order.getVehicle().getImageUrl());
+                dto.setPricePerDay(order.getPricePerDay());
+            }
+            
+            // Equipment detalji
+            if (order.getEquipment() != null) {
+                dto.setEquipmentId(order.getEquipment().getId());
+                dto.setEquipmentType(order.getEquipment().getEquipmentType() != null ? 
+                    order.getEquipment().getEquipmentType().toString() : null);
+            }
+            
+            // Insurance detalji
+            if (order.getInsurance() != null) {
+                dto.setInsuranceId(order.getInsurance().getId());
+                dto.setInsuranceType(order.getInsurance().getType() != null ? 
+                    order.getInsurance().getType().toString() : null);
+                dto.setInsurancePrice(order.getPrice());
+            }
+            
+            // PaymentTransaction detalji - pronađi transakciju po order ID-u
+            PaymentTransaction tx = transactionRepository.findByOrderId(order.getId())
+                .orElse(null);
+            
+            if (tx != null) {
+                dto.setMerchantOrderId(tx.getMerchantOrderId());
+                dto.setPspPaymentId(tx.getPspPaymentId());
+                dto.setPaymentMethod(tx.getPaymentMethod());
+                dto.setPaymentStatus(tx.getStatus());
+                dto.setPaymentCreatedAt(tx.getCreatedAt());
+            }
+            
+            // Određivanje da li je usluga aktivna
+            boolean isActive = false;
+            if (order.getOrderStatus() == OrderStatus.CONFIRMED) {
+                if (order.getType() == OrderType.VEHICLE || order.getType() == OrderType.EQUIPMENT) {
+                    // Za vozilo i opremu: aktivno ako je trenutni datum između startDate i endDate
+                    if (order.getStartDate() != null && order.getEndDate() != null) {
+                        isActive = !now.isBefore(order.getStartDate()) && !now.isAfter(order.getEndDate());
+                    }
+                } else if (order.getType() == OrderType.INSURANCE) {
+                    // Za osiguranje: sve CONFIRMED narudžbine su aktivne (trajno važe)
+                    isActive = true;
+                }
+            }
+            dto.setActive(isActive);
+            
+            return dto;
+        }).collect(java.util.stream.Collectors.toList());
+    }
 }

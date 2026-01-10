@@ -19,9 +19,25 @@ export interface Order {
   price?: number;
   totalAmount: number;
   currency: string;
-  orderStatus: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+  orderStatus: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'ERROR';
   createdAt: string;
   completedAt?: string;
+  
+  // Detalji usluge
+  vehicleModel?: string;
+  vehicleImageUrl?: string;
+  equipmentType?: string;
+  insuranceType?: string;
+  
+  // PaymentTransaction detalji
+  merchantOrderId?: string;
+  pspPaymentId?: string;
+  paymentMethod?: string;
+  paymentStatus?: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'ERROR';
+  paymentCreatedAt?: string;
+  
+  // Flag za aktivnu uslugu
+  isActive?: boolean;
 }
 
 export interface PaymentResponse {
