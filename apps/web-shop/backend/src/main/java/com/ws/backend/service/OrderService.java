@@ -179,6 +179,11 @@ public class OrderService {
         pspRequest.setFailedUrl(apiBase + "/payment-failed?orderId=" + tx.getMerchantOrderId());
         pspRequest.setErrorUrl(apiBase + "/payment-error?orderId=" + tx.getMerchantOrderId());
 
+        System.out.println("==============================================");
+        System.out.println("DEBUG: SALJEM ZAHTEV PSP-u");
+        System.out.println("Success URL: " + pspRequest.getSuccessUrl());
+        System.out.println("Error URL:   " + pspRequest.getErrorUrl());
+        System.out.println("==============================================");
         try {
             ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
                     pspApiUrl, pspRequest, PaymentResponseDTO.class);

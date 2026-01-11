@@ -15,13 +15,16 @@ export class App implements OnInit {
   constructor(
     private authService: AuthService,
     private router: Router
-  ) {}
+  ) {
+    this.router.events.subscribe(event => {
+    console.log("RUTER DOGAĐAJ:", event);
+  });
+  }
 
   ngOnInit() {
-    // Proveri autentifikaciju pri inicijalizaciji aplikacije
-    // Ako je korisnik na root URL i autentifikovan, redirect na home
-    if (this.router.url === '/' && this.authService.isAuthenticated()) {
-      this.router.navigate(['/home']);
-    }
+    /*const ignoredRoutes = ['/payment-success', '/payment-failed', '/payment-error'];
+  if (this.authService.isAuthenticated() && !ignoredRoutes.some(r => this.router.url.startsWith(r))) {
+    this.router.navigate(['/home']);
+  }*/
   }
 }
