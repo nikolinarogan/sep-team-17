@@ -112,4 +112,61 @@ public class BankService {
         }
         return (nSum % 10 == 0);
     }
+
+    public String generateIpsQrString(PspPaymentRequestDTO request) {
+        Merchant merchant = merchantRepository.findByMerchantId(request.getMerchantId())
+                .orElseThrow(() -> new RuntimeException("Prodavac ne postoji!"));
+
+        // 1. Priprema računa - čistimo ga od crtica ako ih ima (mora biti 18 cifara)
+        String rawAccount = merchant.getAccount().getAccountNumber().replaceAll("-", "");
+        // Dopuna nulama ako je račun kraći (prema primerima iz dokumentacije) [cite: 33, 36]
+        // Proveri da li sadrži samo cifre
+        if (!rawAccount.matches("\\d+")) {
+            throw new RuntimeException("Broj računa mora sadržati samo cifre!");
+        }
+
+        String formattedAccount;
+
+        if (rawAccount.length() == 18) {
+            // Ako već ima 18 cifara, koristi direktno
+            formattedAccount = rawAccount;
+        } else if (rawAccount.length() < 18) {
+            // Dopuna nulama sa leve strane do 18 cifara
+            // Ovo je tačno kako dokumentacija kaže
+            formattedAccount = String.format("%018d", Long.parseLong(rawAccount));
+        } else {
+            // Ako je duži od 18 cifara, uzmi poslednjih 18
+            formattedAccount = rawAccount.substring(rawAccount.length() - 18);
+        }
+
+        // 2. Priprema iznosa (Tag I) - NBS zahteva zarez umesto tačke
+        String formattedAmount = String.format("%.2f", request.getAmount()).replace(".", ",");
+
+        // 3. Priprema opisa (Tag S) - MORA BITI MAKSIMALNO 35 KARAKTERA
+        String description = "Placanje porudzbine " + request.getPspTransactionId();
+        if (description.length() > 35) {
+            // Skrati UUID na prvih 8 karaktera ako je predugačak
+            String shortUuid = request.getPspTransactionId().substring(0, 8);
+            description = "Placanje porudzbine " + shortUuid;
+
+            // Ako je i dalje predugačak, skrati opis
+            if (description.length() > 35) {
+                description = description.substring(0, 35);
+            }
+        }
+
+        // 4. Sklapanje stringa koristeći pipe (|) kao separator
+        // VAŽNO: String ne sme početi niti se završiti pipe karakterom
+        StringBuilder ips = new StringBuilder();
+        ips.append("K:PR");         // Tag K - obavezan
+        ips.append("|V:01");        // Tag V - obavezan, verzija 01
+        ips.append("|C:1");         // Tag C - obavezan, UTF-8
+        ips.append("|R:").append(formattedAccount); // Tag R - obavezan, 18 cifara
+        ips.append("|N:").append(merchant.getAccount().getOwnerName()); // Tag N - obavezan, max 70 karaktera
+        ips.append("|I:RSD").append(formattedAmount); // Tag I - obavezan, format: RSDiznos,decimale
+        ips.append("|SF:289");      // Tag SF - obavezan, šifra plaćanja (289 = bezgotovinsko)
+        ips.append("|S:").append(description); // Tag S - opcioni, max 35 karaktera
+
+        return ips.toString();
+    }
 }

@@ -1,4 +1,4 @@
-<div class="container mt-5">
+<!-- <div class="container mt-5">
   <div class="row justify-content-center">
     <div class="col-md-6">
       
@@ -42,8 +42,177 @@
               <span class="badge bg-secondary">Preusmjeravanje</span>
             </button>
           </div>
+          
+
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      
+      <div *ngIf="isLoading" class="text-center p-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Učitavanje detalja plaćanja...</p>
+      </div>
+
+      <div *ngIf="errorMessage" class="alert alert-danger text-center">
+        <h4>Greška</h4>
+        <p>{{ errorMessage }}</p>
+      </div>
+
+      <div *ngIf="checkoutData && !isLoading" class="card shadow-lg">
+        <div class="card-header bg-primary text-white text-center">
+          <h3>Sigurno plaćanje</h3>
+        </div>
+        
+        <div class="card-body p-4">
+          <div class="text-center mb-4">
+            <h5 class="text-muted">Iznos za uplatu:</h5>
+            <h1 class="display-4 fw-bold text-success">
+              {{ checkoutData.amount }} {{ checkoutData.currency }}
+            </h1>
+          </div>
+
+          <hr>
+
+          <div *ngIf="!qrCodeString">
+            <h5 class="mb-3 text-center">Izaberite metod plaćanja:</h5>
+            <div class="d-grid gap-3">
+              <button *ngFor="let method of checkoutData.availableMethods" 
+                      class="btn btn-outline-primary btn-lg d-flex justify-content-between align-items-center"
+                      (click)="selectMethod(method)">
+                <span><i class="bi bi-credit-card me-2"></i> {{ method.name }}</span>
+                <span class="badge bg-secondary">Izaberi</span>
+              </button>
+            </div>
+          </div> -->
+
+          <!-- <div *ngIf="qrCodeString" class="text-center mt-3">
+            <h5 class="mb-3">Skenirajte NBS IPS kod:</h5>
+            
+            <div class="p-3 bg-white border rounded d-inline-block mb-3 shadow-sm">
+              <qrcode [qrdata]="qrCodeString" [width]="240" [errorCorrectionLevel]="'M'"></qrcode>
+            </div>
+
+            <div class="d-grid gap-2 mb-3">
+              <button class="btn btn-dark btn-lg" (click)="showScanner = !showScanner">
+                {{ showScanner ? 'Zatvori kameru' : 'Otvori kameru za skeniranje' }}
+              </button>
+              <button class="btn btn-link btn-sm" (click)="qrCodeString = ''; showScanner = false">
+                Nazad na izbor metoda
+              </button>
+            </div> -->
+
+            <!-- <div *ngIf="showScanner" class="scanner-wrapper border rounded overflow-hidden shadow-inner" 
+                 style="height: 300px; position: relative; background: #000;">
+              <zxing-scanner (scanSuccess)="onScanSuccess($event)"></zxing-scanner>
+              <div class="scanner-laser"></div>
+            </div>
+          </div> -->
+
+        <!-- </div>
+        <div class="card-footer text-muted text-center small">
+          PSP System &copy; 2026 Secured by HTTPS
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 
         </div>
+        <div class="card-footer text-muted text-center small">
+          PSP System &copy; 2026 Secured by HTTPS
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div> -->
+
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      
+      <!-- Loading spinner -->
+      <div *ngIf="isLoading" class="text-center p-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Učitavanje detalja plaćanja...</p>
+      </div>
+
+      <!-- Error message -->
+      <div *ngIf="errorMessage" class="alert alert-danger text-center">
+        <h4>Greška</h4>
+        <p>{{ errorMessage }}</p>
+      </div>
+
+      <!-- Main card -->
+      <div *ngIf="checkoutData && !isLoading" class="card shadow-lg">
+        <div class="card-header bg-primary text-white text-center">
+          <h3>Sigurno plaćanje</h3>
+        </div>
+        
+        <div class="card-body p-4">
+          <!-- Iznos za uplatu -->
+          <div class="text-center mb-4">
+            <h5 class="text-muted">Iznos za uplatu:</h5>
+            <h1 class="display-4 fw-bold text-success">
+              {{ checkoutData.amount }} {{ checkoutData.currency }}
+            </h1>
+            <p class="text-muted small">Merchant ID: {{ checkoutData.merchantId }}</p>
+          </div>
+
+          <hr>
+
+          <!-- PRIKAZ METODA PLAĆANJA (kada nema QR koda) -->
+          <div *ngIf="!qrCodeString">
+            <h5 class="mb-3 text-center">Izaberite metod plaćanja:</h5>
+            <div class="d-grid gap-3">
+              <button *ngFor="let method of checkoutData.availableMethods" 
+                      class="btn btn-outline-primary btn-lg d-flex justify-content-between align-items-center"
+                      (click)="selectMethod(method)">
+                <span><i class="bi bi-credit-card me-2"></i> {{ method.name }}</span>
+                <span class="badge bg-secondary">Izaberi</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- PRIKAZ QR KODA (kada je qrCodeString postavljen) -->
+          <div *ngIf="qrCodeString" class="text-center mt-3">
+            <h5 class="mb-4">Skenirajte NBS IPS kod:</h5>
+            
+            <!-- QR kod -->
+            <div class="p-4 bg-white border rounded d-inline-block mb-4 shadow-sm">
+              <qrcode [qrdata]="qrCodeString" [width]="280" [errorCorrectionLevel]="'M'"></qrcode>
+            </div>
+
+            <!-- Instrukcije -->
+            <p class="text-muted mb-4">
+              Otvorite mBanking aplikaciju na telefonu i skenirajte QR kod sa ekrana.
+            </p>
+
+            <!-- Dugmad -->
+            <div class="d-grid gap-2 mb-3">
+              <button class="btn btn-dark btn-lg" (click)="showScanner = !showScanner">
+                {{ showScanner ? 'Zatvori kameru' : 'Otvori kameru za skeniranje' }}
+              </button>
+              <button class="btn btn-outline-secondary btn-sm" (click)="qrCodeString = ''; showScanner = false">
+                ← Nazad na izbor metoda
+              </button>
+            </div>
+
+            <!-- Scanner (opciono) -->
+            <div *ngIf="showScanner" class="scanner-wrapper border rounded overflow-hidden shadow-inner mt-3" 
+                 style="height: 300px; position: relative; background: #000;">
+              <zxing-scanner (scanSuccess)="onScanSuccess($event)"></zxing-scanner>
+            </div>
+          </div>
+
+        </div>
+        
         <div class="card-footer text-muted text-center small">
           PSP System &copy; 2026 Secured by HTTPS
         </div>

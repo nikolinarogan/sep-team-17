@@ -10,6 +10,7 @@ import service.PaymentService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import service.QrPaymentService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,11 +23,14 @@ public class PaymentController {
     private final PaymentService paymentService;
     private final CardPaymentService cardPaymentService;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final QrPaymentService qrPaymentService;
 
-    public PaymentController(PaymentService paymentService, CardPaymentService cardPaymentService, PaymentTransactionRepository paymentTransactionRepository) {
+    public PaymentController(PaymentService paymentService, CardPaymentService cardPaymentService, PaymentTransactionRepository paymentTransactionRepository
+    , QrPaymentService qrPaymentService) {
         this.paymentService = paymentService;
         this.cardPaymentService = cardPaymentService;
         this.paymentTransactionRepository = paymentTransactionRepository;
+        this.qrPaymentService = qrPaymentService;
     }
 
         /**
@@ -79,6 +83,21 @@ public class PaymentController {
         // 3. Vrati URL Angularu
         Map<String, String> response = new HashMap<>();
         response.put("paymentUrl", bankUrl);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/checkout/{uuid}/qr")
+    public ResponseEntity<?> initQrPayment(@PathVariable String uuid) {
+        // 1. Nađi transakciju
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
+
+        // 2. Pozovi servis da dobiješ validan NBS string od banke
+        String qrData = qrPaymentService.getIpsQrData(tx);
+
+        // 3. Vrati string Angularu (Angular će od ovoga napraviti sliku)
+        Map<String, String> response = new HashMap<>();
+        response.put("qrData", qrData);
         return ResponseEntity.ok(response);
     }
 }
