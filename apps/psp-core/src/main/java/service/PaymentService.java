@@ -52,9 +52,9 @@ public class PaymentService {
                 .orElseThrow(() -> new RuntimeException("Prodavac sa ID-jem " + request.getMerchantId() + " ne postoji."));
 
         // 2. Provjera lozinke
-        /*if (!passwordEncoder.matches(request.getMerchantPassword(), merchant.getMerchantPassword())) {
+        if (!passwordEncoder.matches(request.getMerchantPassword(), merchant.getMerchantPassword())) {
             throw new RuntimeException("Pogrešna lozinka za prodavca.");
-        }*/
+        }
 
         // 3. Sprečavanje dvostrukog plaćanja
         if (transactionRepository.existsByMerchantIdAndMerchantOrderId(request.getMerchantId(), request.getMerchantOrderId())) {
