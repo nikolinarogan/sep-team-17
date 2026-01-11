@@ -21,15 +21,15 @@ import { userGuard } from './guards/user.guard';
 import { initialGuard } from './guards/initial.guard';
 
 export const routes: Routes = [
+  { path: 'payment-success', component: PaymentSuccessComponent },
+  { path: 'payment-failed', component: PaymentFailedComponent },
+  { path: 'payment-error', component: PaymentErrorComponent },
   { path: 'home', component: LandingComponent, canActivate: [authGuard] },
   { path: 'services', component: ServicesComponent, canActivate: [authGuard] },
   { path: 'orders', component: OrderHistoryComponent, canActivate: [userGuard] },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'change-password', component: ChangePasswordComponent },
-  { path: 'payment-success', component: PaymentSuccessComponent },
-  { path: 'payment-failed', component: PaymentFailedComponent },
-  { path: 'payment-error', component: PaymentErrorComponent },
   { path: 'vehicles', component: VehiclesComponent, canActivate: [adminGuard] },
   { path: 'vehicles/new', component: VehicleFormComponent, canActivate: [adminGuard] },
   { path: 'vehicles/edit/:id', component: VehicleFormComponent, canActivate: [adminGuard] },
@@ -39,5 +39,6 @@ export const routes: Routes = [
   { path: 'insurance', component: InsuranceComponent, canActivate: [adminGuard] },
   { path: 'insurance/new', component: InsuranceFormComponent, canActivate: [adminGuard] },
   { path: 'insurance/edit/:id', component: InsuranceFormComponent, canActivate: [adminGuard] },
-  { path: '', canActivate: [initialGuard], component: LoginComponent },
+  //{ path: '', canActivate: [initialGuard], component: LoginComponent, pathMatch: 'full' },
+  { path: '', redirectTo: 'login', pathMatch: 'full'}
 ];

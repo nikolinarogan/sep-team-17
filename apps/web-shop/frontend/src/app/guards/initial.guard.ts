@@ -6,8 +6,11 @@ export const initialGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  // Ako je korisnik autentifikovan, redirect na home
-  if (authService.isAuthenticated()) {
+   const ignoredRoutes = ['/payment-success', '/payment-failed', '/payment-error'];
+
+   const isIgnored = ignoredRoutes.some(r => state.url.startsWith(r));
+
+   if (authService.isAuthenticated() && !isIgnored) {
     return router.createUrlTree(['/home']);
   }
 

@@ -1,88 +1,74 @@
-    package controller;
+package controller;
 
-import dto.CheckoutResponseDTO;
-import dto.PaymentRequestDTO;
-import dto.PaymentResponseDTO;
-import jakarta.servlet.http.HttpServletResponse;
+import dto.*;
 import model.PaymentTransaction;
 import repository.PaymentTransactionRepository;
 import service.CardPaymentService;
 import service.PaymentService;
+import service.QrPaymentService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import service.QrPaymentService;
-
-import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/payments")
-@CrossOrigin(origins = "https://localhost:4201", allowedHeaders = "*", allowCredentials = "true")
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class PaymentController {
 
     private final PaymentService paymentService;
     private final CardPaymentService cardPaymentService;
-    private final PaymentTransactionRepository paymentTransactionRepository;
     private final QrPaymentService qrPaymentService;
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
-    public PaymentController(PaymentService paymentService, CardPaymentService cardPaymentService, PaymentTransactionRepository paymentTransactionRepository
-    , QrPaymentService qrPaymentService) {
+    public PaymentController(PaymentService paymentService,
+                             CardPaymentService cardPaymentService,
+                             QrPaymentService qrPaymentService,
+                             PaymentTransactionRepository paymentTransactionRepository) {
         this.paymentService = paymentService;
         this.cardPaymentService = cardPaymentService;
-        this.paymentTransactionRepository = paymentTransactionRepository;
         this.qrPaymentService = qrPaymentService;
+        this.paymentTransactionRepository = paymentTransactionRepository;
     }
 
-        /**
-         * KORAK 1: Inicijalizacija plaćanja
-         * ---------------------------------------------------------
-         * Zove Web Shop
-         * Kada korisnik na sajtu prodavca klikne "Plati"
-         * ULAZ: Iznos, MerchantID, OrderID...
-         * IZLAZ: URL ka PSP Checkout stranici (npr. http://localhost:4201/checkout/uuid...)
-         */
-        @PostMapping("/init")
-        public ResponseEntity<PaymentResponseDTO> initializePayment(@Valid @RequestBody PaymentRequestDTO request) {
-            PaymentResponseDTO response = paymentService.createTransaction(request);
-            return ResponseEntity.ok(response);
-        }
+    @PostMapping("/init")
+    public ResponseEntity<PaymentResponseDTO> initializePayment(@Valid @RequestBody PaymentRequestDTO request) {
+        return ResponseEntity.ok(paymentService.createTransaction(request));
+    }
 
-        /**
-         * KORAK 2: Podaci za Checkout stranicu
-         * ---------------------------------------------------------
-         * Zove PSP Frontend
-         * Kada se korisniku otvori link iz prethodnog koraka
-         * ULAZ: UUID transakcije (iz URL-a)
-         * IZLAZ: Iznos, valuta i dostupne metode plaćanja (npr. ["CARD", "QR"])
-         */
-        @GetMapping("/{uuid}")
-        public ResponseEntity<CheckoutResponseDTO> getCheckoutPageData(@PathVariable String uuid) {
-            CheckoutResponseDTO data = paymentService.getCheckoutData(uuid);
-            return ResponseEntity.ok(data);
-        }
+    @GetMapping("/payment-callback")
+    public ResponseEntity<Void> handleBrowserCallback(@RequestParam String paymentId,
+                                                      @RequestParam(required = false) String status) { // <--- Dodali smo status
 
-    /**
-     * CALLBACK ENDPOINT
-     * Ovdje gađaju Bank Service i QR Service kad završe posao
-     */
-    @PutMapping("/status")
-    public ResponseEntity<Void> updateStatus(@RequestBody dto.PaymentCallbackDTO callback) {
-        paymentService.finaliseTransaction(callback);
-        return ResponseEntity.ok().build();
+        System.out.println("--- BROWSER SE VRATIO IZ BANKE ---");
+        System.out.println("ID: " + paymentId);
+        System.out.println("STATUS: " + status);
+
+        String finalStatus = (status != null) ? status : "FAILED";
+
+        // Šaljemo status u servis
+        String webShopUrl = paymentService.getRedirectUrl(paymentId, finalStatus);
+
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(webShopUrl))
+                .build();
+    }
+
+    @GetMapping("/{uuid}")
+    public ResponseEntity<CheckoutResponseDTO> getCheckoutPageData(@PathVariable String uuid) {
+        return ResponseEntity.ok(paymentService.getCheckoutData(uuid));
     }
 
     @PostMapping("/checkout/{uuid}/card")
     public ResponseEntity<?> initCardPayment(@PathVariable String uuid) {
-        // 1. Nađi transakciju u bazi
         PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
+                .orElseThrow(() -> new RuntimeException("Nema transakcije"));
 
-        // 2. Pozovi servis da kontaktira Banku
         String bankUrl = cardPaymentService.initializePayment(tx);
 
-        // 3. Vrati URL Angularu
         Map<String, String> response = new HashMap<>();
         response.put("paymentUrl", bankUrl);
         return ResponseEntity.ok(response);
@@ -90,39 +76,27 @@ public class PaymentController {
 
     @PostMapping("/checkout/{uuid}/qr")
     public ResponseEntity<?> initQrPayment(@PathVariable String uuid) {
-        // 1. Nađi transakciju
         PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
+                .orElseThrow(() -> new RuntimeException("Nema transakcije"));
 
-        // 2. Pozovi servis da dobiješ validan NBS string od banke
         String qrData = qrPaymentService.getIpsQrData(tx);
 
-        // 3. Vrati string Angularu (Angular će od ovoga napraviti sliku)
         Map<String, String> response = new HashMap<>();
         response.put("qrData", qrData);
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/payment-callback") // Putanja mora da se slaže sa onom u Banci!
-    public void paymentCallback(@RequestParam String paymentId,
-                                @RequestParam String status,
-                                HttpServletResponse response) throws IOException {
+    @PostMapping("/finalize")
+    public ResponseEntity<String> finalizeCard(@RequestBody PaymentCallbackDTO callback) {
+        System.out.println("Stigao odgovor od Banke (Server-to-Server)!");
+        String redirectUrl = paymentService.finaliseTransaction(callback, "CARD");
+        return ResponseEntity.ok(redirectUrl);
+    }
 
-        System.out.println("--- STIGAO CALLBACK IZ BANKE ---");
-        System.out.println("Payment ID: " + paymentId);
-        System.out.println("Status: " + status);
-
-        try {
-            // Pozivamo servis da obradi status i da nam da URL Web Shopa
-            String webShopUrl = cardPaymentService.handleCallback(paymentId, status);
-
-            // Radimo finalnu redirekciju na Web Shop
-            response.sendRedirect(webShopUrl);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            // Ako nešto pukne, pošalji ga na neki generic error page
-            response.sendRedirect("https://localhost:4200/error");
-        }
+    @PostMapping("/finalize/qr")
+    public ResponseEntity<String> finalizeQr(@RequestBody PaymentCallbackDTO callback) {
+        System.out.println("Stigao odgovor za QR (Server-to-Server)!");
+        String redirectUrl = paymentService.finaliseTransaction(callback, "QR_CODE");
+        return ResponseEntity.ok(redirectUrl);
     }
 }

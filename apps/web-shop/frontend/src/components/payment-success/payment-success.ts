@@ -25,6 +25,7 @@ export class PaymentSuccessComponent implements OnInit {
 
   ngOnInit() {
     // Uzmi orderId iz query parametra
+    console.log("!!! USLA SAM U SUCCESS KOMPONENTU !!!");
     this.route.queryParams.subscribe(params => {
       this.orderId = params['orderId'];
       
