@@ -50,7 +50,7 @@ public class AuthService {
 
         AppUser savedUser = userRepository.save(user);
         
-        String activationLink = "http://localhost:8080/auth/activate?token=" + token;
+        String activationLink = "https://localhost:8080/auth/activate?token=" + token;
         emailSender.sendActivationEmail(savedUser.getEmail(), activationLink, "Activate account");
 
         return savedUser;
