@@ -1,9 +1,11 @@
 package service;
 
 import model.PaymentTransaction;
+import model.TransactionStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate; // <--- BITNO!
+import repository.PaymentTransactionRepository;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -16,10 +18,12 @@ public class CardPaymentService {
 
     // Polje za RestTemplate
     private final RestTemplate restTemplate;
+    private final PaymentTransactionRepository transactionRepository;
 
     // Konstruktor (Spring ovde ubacuje onaj konfigurisani RestTemplate)
-    public CardPaymentService(RestTemplate restTemplate) {
+    public CardPaymentService(RestTemplate restTemplate, PaymentTransactionRepository paymentTransactionRepository) {
         this.restTemplate = restTemplate;
+        this.transactionRepository = paymentTransactionRepository;
     }
 
     public String initializePayment(PaymentTransaction transaction) {
@@ -43,6 +47,11 @@ public class CardPaymentService {
                 String url = body.get("paymentUrl").toString();
                 System.out.println("---- IZVUČEN URL: " + url);
 
+                if (body.containsKey("paymentId")) {
+                    String bankPaymentId = body.get("paymentId").toString();
+                    transaction.setExecutionId(bankPaymentId); // Čuvamo ga kao executionId
+                    transactionRepository.save(transaction);   // Snimamo u bazu
+                }
                 // Vraćamo SAMO URL (čist string: "https://localhost:8082/...")
                 return url;
             }
@@ -52,6 +61,28 @@ public class CardPaymentService {
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException("Greška: " + e.getMessage());
+        }
+    }
+
+    public String handleCallback(String bankPaymentId, String status) {
+        // 1. Tražimo transakciju po ID-u koji nam je banka vratila
+        PaymentTransaction tx = transactionRepository.findByExecutionId(bankPaymentId)
+                .orElseThrow(() -> new RuntimeException("Nepoznata transakcija u PSP-u!"));
+
+        // 2. Ažuriramo status na osnovu onoga što je banka rekla
+        if ("SUCCESS".equals(status)) {
+            tx.setStatus(TransactionStatus.SUCCESS);
+            transactionRepository.save(tx);
+
+            // Vraćamo korisnika na Success URL Web Shopa
+            return tx.getSuccessUrl();
+
+        } else {
+            tx.setStatus(TransactionStatus.FAILED); // ili ERROR
+            transactionRepository.save(tx);
+
+            // Vraćamo korisnika na Failed URL Web Shopa
+            return tx.getFailedUrl();
         }
     }
 }

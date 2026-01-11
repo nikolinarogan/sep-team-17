@@ -6,7 +6,19 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .payment-card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px; }
-        h2 { text-align: center; color: #333; margin-bottom: 20px; }
+        h2 { text-align: center; color: #333; margin-bottom: 10px; }
+
+        /* NOVO: Stilovi za logotipe kartica */
+        .card-logos {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .card-logos img {
+            height: 30px; /* Visina logotipa */
+            margin: 0 5px;
+            vertical-align: middle;
+        }
+
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
         input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
@@ -22,6 +34,12 @@
 
 <div class="payment-card">
     <h2>Secure Payment</h2>
+
+    <div class="card-logos">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard">
+    </div>
+
     <div id="statusMessage" class="error"></div>
     <div id="successMessage" class="success"></div>
 
@@ -54,8 +72,22 @@
 </div>
 
 <script>
-    // 1. Uzimamo Payment ID iz URL-a (npr. ?paymentId=neki-uuid)
-    // Ovo je kljucno jer banka mora znati KOJU transakciju placamo
+    function luhnCheck(cardNo) {
+        let nDigits = cardNo.length;
+        let nSum = 0;
+        let isSecond = false;
+        for (let i = nDigits - 1; i >= 0; i--) {
+            let d = cardNo.charAt(i) - '0';
+            if (isSecond == true)
+                d = d * 2;
+            nSum += parseInt(d / 10);
+            nSum += d % 10;
+            isSecond = !isSecond;
+        }
+        return (nSum % 10 == 0);
+    }
+
+    // 1. Uzimamo Payment ID iz URL-a
     const urlParams = new URLSearchParams(window.location.search);
     const paymentIdFromUrl = urlParams.get('paymentId');
 
@@ -67,43 +99,64 @@
         document.getElementById('payButton').disabled = true;
     }
 
-    // 2. Slanje podataka na Backend (Bank Backend)
+    // 2. Slanje podataka na Backend
     document.getElementById('paymentForm').addEventListener('submit', async function(e) {
         e.preventDefault();
 
+        // Definišemo promenljive ODMAH na početku da bismo mogli da ih koristimo
+        const panValue = document.getElementById('pan').value;
+        const statusDiv = document.getElementById('statusMessage');
+        const successDiv = document.getElementById('successMessage');
+        const btn = document.getElementById('payButton');
+
+        // Reset poruka
+        statusDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+
+        // Validacija pre slanja
+        if (!luhnCheck(panValue)) {
+            statusDiv.innerText = "Greška: Uneli ste neispravan broj kartice (Luhn provera)!";
+            statusDiv.style.display = "block";
+            return;
+        }
+
         const formData = {
             paymentId: document.getElementById('paymentId').value,
-            pan: document.getElementById('pan').value,
+            pan: panValue,
             securityCode: document.getElementById('securityCode').value,
             cardHolderName: document.getElementById('cardHolderName').value,
             expirationDate: document.getElementById('expirationDate').value
         };
 
-        const statusDiv = document.getElementById('statusMessage');
-        const successDiv = document.getElementById('successMessage');
-        const btn = document.getElementById('payButton');
-
         try {
             btn.disabled = true;
-            btn.innerText = "Processing...";
-            statusDiv.style.display = 'none';
+            btn.innerText = "Obrada...";
 
-            // Pozivamo tvoj BankController -> processPayment
             const response = await fetch('/api/bank/pay', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
 
-            if (response.ok) {
-                successDiv.innerText = "Plaćanje uspešno!";
-                successDiv.style.display = "block";
+            const data = await response.json();
 
-                // Ovde kasnije dodajemo redirect nazad na PSP (Success URL)
+            if (data.redirectUrl) {
+                if (data.status === 'SUCCESS') {
+                    successDiv.innerText = "Plaćanje uspešno! Preusmeravam...";
+                    successDiv.style.display = "block";
+                } else {
+                    statusDiv.innerText = "Plaćanje nije uspelo: " + (data.message || "Nepoznat razlog");
+                    statusDiv.style.display = "block";
+                }
+
+                setTimeout(() => {
+                    window.location.href = data.redirectUrl;
+                }, 1500);
+
             } else {
-                const errorText = await response.text();
-                throw new Error(errorText);
+                throw new Error(data.message || "Došlo je do greške na serveru.");
             }
+
         } catch (error) {
             statusDiv.innerText = "Greška: " + error.message;
             statusDiv.style.display = "block";

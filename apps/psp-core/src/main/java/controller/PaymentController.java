@@ -3,6 +3,7 @@
 import dto.CheckoutResponseDTO;
 import dto.PaymentRequestDTO;
 import dto.PaymentResponseDTO;
+import jakarta.servlet.http.HttpServletResponse;
 import model.PaymentTransaction;
 import repository.PaymentTransactionRepository;
 import service.CardPaymentService;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import service.QrPaymentService;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -99,5 +101,28 @@ public class PaymentController {
         Map<String, String> response = new HashMap<>();
         response.put("qrData", qrData);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/payment-callback") // Putanja mora da se slaže sa onom u Banci!
+    public void paymentCallback(@RequestParam String paymentId,
+                                @RequestParam String status,
+                                HttpServletResponse response) throws IOException {
+
+        System.out.println("--- STIGAO CALLBACK IZ BANKE ---");
+        System.out.println("Payment ID: " + paymentId);
+        System.out.println("Status: " + status);
+
+        try {
+            // Pozivamo servis da obradi status i da nam da URL Web Shopa
+            String webShopUrl = cardPaymentService.handleCallback(paymentId, status);
+
+            // Radimo finalnu redirekciju na Web Shop
+            response.sendRedirect(webShopUrl);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            // Ako nešto pukne, pošalji ga na neki generic error page
+            response.sendRedirect("https://localhost:4200/error");
+        }
     }
 }

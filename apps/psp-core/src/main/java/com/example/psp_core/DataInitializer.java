@@ -54,7 +54,7 @@ public class DataInitializer implements CommandLineRunner {
 
         // 2. KREIRANJE GLOBALNIH METODA PLAĆANJA
         if (paymentMethodRepository.count() == 0) {
-            createMethod("CARD", "http://localhost:8082/api/bank/card");   // Banka servis
+            createMethod("CARD", "https://localhost:8082/api/bank/card");   // Banka servis
             createMethod("QR", "http://localhost:8082/api/qr");       // Banka servis (IPS)
             createMethod("PAYPAL", "http://localhost:8083/api/paypal"); // PayPal simulacija
             createMethod("CRYPTO", "http://localhost:8084/api/crypto"); // Crypto simulacija
@@ -66,7 +66,7 @@ public class DataInitializer implements CommandLineRunner {
             PspConfig linkConfig = new PspConfig();
             linkConfig.setConfigName("PAYMENT_LINK_TEMPLATE");
             // Ovo je link na koji redirektujemo Web Shop. {uuid} se dinamički menja.
-            linkConfig.setConfigValue("http://localhost:4201/checkout/{uuid}");
+            linkConfig.setConfigValue("https://localhost:4201/checkout/{uuid}");
             pspConfigRepository.save(linkConfig);
             System.out.println("✅ KONFIGURACIJA KREIRANA (Frontend Link)");
         }
@@ -109,9 +109,9 @@ public class DataInitializer implements CommandLineRunner {
             t.setCurrency("EUR");
             t.setStatus(TransactionStatus.CREATED);
             t.setUuid("test-transakcija-123"); // ID koji kucaš u URL
-            t.setSuccessUrl("http://localhost:4200/success");
-            t.setFailedUrl("http://localhost:4200/failed");
-            t.setErrorUrl("http://localhost:4200/error");
+            t.setSuccessUrl("https://localhost:4200/success");
+            t.setFailedUrl("https://localhost:4200/failed");
+            t.setErrorUrl("https://localhost:4200/error");
 
             paymentTransactionRepository.save(t);
             System.out.println("✅ TEST TRANSAKCIJA KREIRANA: UUID = test-transakcija-123");

@@ -9,4 +9,5 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     Optional<PaymentTransaction> findByUuid(String uuid);
 
     boolean existsByMerchantIdAndMerchantOrderId(String merchantId, String merchantOrderId);
+    Optional<PaymentTransaction> findByExecutionId(String executionId);
 }

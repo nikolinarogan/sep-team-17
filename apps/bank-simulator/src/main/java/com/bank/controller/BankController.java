@@ -15,6 +15,7 @@ import java.util.Map;
 public class BankController {
 
     private final BankService bankService;
+    private static final String PSP_CALLBACK_URL = "https://localhost:8443/api/payments/payment-callback";
 
     public BankController(BankService bankService) {
         this.bankService = bankService;
@@ -35,24 +36,42 @@ public class BankController {
 
     // 2. OVO JE ENDPOINT KOJI GAĐAŠ SA FORME (HTML)
     @PostMapping("/pay")
-    public ResponseEntity<?> processPayment(@Valid @RequestBody BankPaymentFormDTO paymentForm) {
-        System.out.println("--- PRIMLJEN ZAHTEV ZA PLAĆANJE (KARTICA) ---");
-        System.out.println("Payment ID: " + paymentForm.getPaymentId());
-        System.out.println("Maskiran PAN: **** **** **** " + paymentForm.getPan().substring(paymentForm.getPan().length() - 4));
+    public ResponseEntity<Map<String, String>> processPayment(@Valid @RequestBody BankPaymentFormDTO paymentForm) {
+        System.out.println("--- OBRADA PLAĆANJA ZA ID: " + paymentForm.getPaymentId() + " ---");
+
+        Map<String, String> response = new HashMap<>();
 
         try {
+            // 1. Pozivamo servis da skine novac
             bankService.processPayment(paymentForm);
 
-            // Vraćamo JSON odgovor da je sve OK
-            Map<String, String> response = new HashMap<>();
+            // 2. Ako je sve prošlo bez greške (SUCCESS)
+            // Pravimo URL na koji Frontend treba da preusmeri korisnika
+            String redirectUrl = PSP_CALLBACK_URL +
+                    "?paymentId=" + paymentForm.getPaymentId() +
+                    "&status=SUCCESS";
+
             response.put("status", "SUCCESS");
-            response.put("message", "Plaćanje uspešno izvršeno!");
+            response.put("redirectUrl", redirectUrl); // <--- OVO JE KLJUČNO
+
             return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
-            // Ako je odbijeno (nema para, loš CVV...), vraćamo grešku 400
-            System.out.println("Greška pri plaćanju: " + e.getMessage());
-            return ResponseEntity.badRequest().body(e.getMessage());
+            // 3. Ako je puklo (npr. Nema sredstava, Loš PIN...), hvatamo grešku
+            System.out.println("Transakcija neuspešna: " + e.getMessage());
+
+            // Čak i kad je greška, moramo vratiti korisnika na PSP sa statusom FAILED
+            String redirectUrl = PSP_CALLBACK_URL +
+                    "?paymentId=" + paymentForm.getPaymentId() +
+                    "&status=FAILED";
+
+            response.put("status", "FAILED");
+            response.put("message", e.getMessage());
+            response.put("redirectUrl", redirectUrl); // Šaljemo ga nazad da vidi grešku na WebShopu
+
+            // Vraćamo 200 OK jer smo uspešno obradili zahtev (iako je ishod plaćanja neuspeh)
+            // Frontend samo čita "redirectUrl" i radi posao.
+            return ResponseEntity.ok(response);
         }
     }
 
