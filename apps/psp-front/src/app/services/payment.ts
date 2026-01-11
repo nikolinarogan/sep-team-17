@@ -19,5 +19,15 @@ export class Payment {
     return this.http.post<{ paymentUrl: string }>(`${this.apiUrl}/payments/checkout/${uuid}/card`, {});
   }
 
-  
+  // 1. Metoda koja traži od bekenda QR podatke (NBS string)
+  initiateQrPayment(uuid: string): Observable<{ qrData: string }> {
+    return this.http.post<{ qrData: string }>(`${this.apiUrl}/payments/checkout/${uuid}/qr`, {});
+  }
+
+  // 2. Metoda koja šalje skenirani string na proveru
+  verifyQrScan(uuid: string, scannedData: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/payments/checkout/${uuid}/verify-qr`, {
+      scannedString: scannedData
+    });
+  }
 }

@@ -74,4 +74,19 @@ public class BankController {
             return ResponseEntity.ok(response);
         }
     }
+
+    @PostMapping("/qr-initialize")
+    public ResponseEntity<Map<String, String>> initializeQr(@RequestBody PspPaymentRequestDTO request) {
+        // Generišemo IPS string
+        String qrData = bankService.generateIpsQrString(request);
+
+        // Čuvamo transakciju kao PENDING u bazi (isto kao za karticu)
+        PspPaymentResponseDTO bankResponse = bankService.createPaymentUrl(request);
+
+        Map<String, String> response = new HashMap<>();
+        response.put("qrData", qrData);
+        response.put("paymentId", bankResponse.getPaymentId());
+
+        return ResponseEntity.ok(response);
+    }
 }
