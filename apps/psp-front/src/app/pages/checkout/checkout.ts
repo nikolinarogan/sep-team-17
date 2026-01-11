@@ -2,10 +2,12 @@ import { CommonModule } from '@angular/common';
 import { Component, Input, OnInit } from '@angular/core';
 import { CheckoutResponse, PaymentMethod } from '../../models/psp-models';
 import { Payment } from '../../services/payment';
+import { QRCodeComponent } from 'angularx-qrcode';
+import { ZXingScannerModule } from '@zxing/ngx-scanner';
 
 @Component({
   selector: 'app-checkout',
-  imports: [CommonModule],
+  imports: [CommonModule, QRCodeComponent, ZXingScannerModule],
   templateUrl: './checkout.html',
   styleUrl: './checkout.css',
 })
@@ -15,7 +17,8 @@ export class Checkout implements OnInit{
   checkoutData: CheckoutResponse | null = null;
   isLoading = true;
   errorMessage = '';
-
+  qrCodeString: string = ''; 
+  showScanner = false;
   constructor(private paymentService: Payment) {}
 
   ngOnInit(): void {
@@ -84,10 +87,45 @@ export class Checkout implements OnInit{
     this.isLoading = false;
   }
 });
-    } else {
-        // Za ostale metode (PayPal, Crypto, QR) koje još nisu gotove
-        alert(`Metoda ${method.name} još nije implementirana.`);
+    } else if (method.name === 'QR') {
+        this.isLoading = true;
+        this.paymentService.initiateQrPayment(this.uuid).subscribe({
+          next: (response: any) => {
+            this.qrCodeString = response.qrData; 
+            this.isLoading = false;
+            // Ostajemo na stranici da bi se prikazao QR kod iz HTML-a
+          },
+          error: (err) => {
+            this.errorMessage = "Greška pri dobavljanju QR koda.";
+            this.isLoading = false;
+          }
+        });
     }
   }
+  
+  onScanSuccess(scannedText: string) {
+    console.log("Kamera je pročitala:", scannedText);
+    
+    // Validacija: Poredimo ono što je kamera pročitala sa onim što je stiglo od banke
+    if (scannedText === this.qrCodeString) {
 
+      this.isLoading = true;
+      this.showScanner = false; // Odmah gasimo kameru
+
+      // 2. Pozivamo PSP Backend da verifikuje i javi Banci
+      this.paymentService.verifyQrScan(this.uuid, scannedText).subscribe({
+        next: (res) => {
+          alert("Plaćanje uspešno!");
+          window.location.href = 'http://localhost:4200/my-services';
+        },
+        error: (err) => {
+          console.error("Greška pri verifikaciji:", err);
+          this.errorMessage = "Verifikacija neuspešna.";
+          this.isLoading = false;
+        }
+      });
+    } else {
+      alert("Skenirani kod ne odgovara ovoj transakciji!");
+    }
+  }
 }
