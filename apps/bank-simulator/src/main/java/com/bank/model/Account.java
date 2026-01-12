@@ -31,4 +31,16 @@ public class Account {
     // Rezervisana sredstva (bitno za stavku 5 iz specifikacije - "banka rezerviše sredstva" [cite: 76])
     @Column(nullable = false)
     private BigDecimal reservedFunds;
+
+    @Column(name = "pin") // <--- OVO DODAJEŠ
+    private String pin;
+
+    // Obavezan Getter i Setter
+    public String getPin() {
+        return pin;
+    }
+
+    public void setPin(String pin) {
+        this.pin = pin;
+    }
 }

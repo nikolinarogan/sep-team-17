@@ -128,4 +128,13 @@ export class Checkout implements OnInit{
       alert("Skenirani kod ne odgovara ovoj transakciji!");
     }
   }
+
+  openMbankingSimulator() {
+      // Ovde unesi tačnu adresu gde ti se nalazi onaj mbanking.html
+      // Pretpostavljam da je na portu 8082 (Banka Backend)
+      const bankUrl = 'https://localhost:8082/mbanking.html'; 
+      
+      // '_blank' otvara u novom tabu
+      window.open(bankUrl, '_blank');
+  }
 }

@@ -89,4 +89,27 @@ public class BankController {
 
         return ResponseEntity.ok(response);
     }
+
+    // 3. OVO JE ENDPOINT ZA IPS SKENIRAJ (Dolazi sa mbanking.html)
+    @PostMapping("/transfer")
+    public ResponseEntity<?> processQrPayment(@RequestBody QrTransferRequestDTO request) {
+        System.out.println("--- PRIMLJEN ZAHTEV ZA QR TRANSFER (mBanking) ---");
+
+        try {
+            // 👇 IZMENA: Hvatamo URL koji servis vrati
+            String redirectUrl = bankService.processInternalTransfer(request);
+
+            // Pakujemo ga u odgovor
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "SUCCESS");
+            response.put("message", "QR Plaćanje uspešno izvršeno!");
+            response.put("redirectUrl", redirectUrl); // <--- ŠALJEMO GA FRONTENDU
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            System.out.println("Greška pri QR plaćanju: " + e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
 }

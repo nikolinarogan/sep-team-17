@@ -51,7 +51,7 @@
           <span [class]="'status-badge ' + getStatusClass(order.orderStatus)">
             {{ getStatusLabel(order.orderStatus) }}
           </span>
-          <span class="active-badge" *ngIf="order.isActive">Active</span>
+          <span class="active-badge" *ngIf="order.active">Active</span>
         </div>
       </div>
 

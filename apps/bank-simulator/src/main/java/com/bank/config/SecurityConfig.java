@@ -23,8 +23,8 @@ public class SecurityConfig {
                         .requestMatchers("/pay.html", "/css/**", "/js/**", "/images/**").permitAll()
 
                         // --> Dozvoli pristup API rutama (da PSP može da pozove banku, i da forma može da pošalje podatke)
+                        .requestMatchers("/mbanking.html").permitAll()  // Dozvoli pristup simulatoru svima
                         .requestMatchers("/api/bank/**").permitAll()
-
                         // --> Sve ostale rute (ako ih imaš) zahtevaju logovanje
                         .anyRequest().authenticated()
                 );

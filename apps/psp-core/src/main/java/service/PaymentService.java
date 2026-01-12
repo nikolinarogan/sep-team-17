@@ -232,8 +232,7 @@ public class PaymentService {
         Merchant merchant = merchantRepository.findByMerchantId(tx.getMerchantId())
                 .orElseThrow(() -> new RuntimeException("Prodavac ne postoji"));
 
-        // Sastavljamo URL: merchant_url + /api/payment/callback/status
-        String baseWebhookUrl = merchant.getWebShopUrl() + "/api/payment/callback";
+        String baseWebhookUrl = merchant.getWebShopUrl();
         String targetUrl;
 
         if (tx.getStatus() == TransactionStatus.SUCCESS) {

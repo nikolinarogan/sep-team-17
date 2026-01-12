@@ -55,7 +55,7 @@ public class DataInitializer implements CommandLineRunner {
         // 2. KREIRANJE GLOBALNIH METODA PLAĆANJA
         if (paymentMethodRepository.count() == 0) {
             createMethod("CARD", "https://localhost:8082/api/bank/card");   // Banka servis
-            createMethod("QR", "http://localhost:8082/api/qr");       // Banka servis (IPS)
+            createMethod("QR", "https://localhost:8082/api/qr");       // Banka servis (IPS)
             createMethod("PAYPAL", "http://localhost:8083/api/paypal"); // PayPal simulacija
             createMethod("CRYPTO", "http://localhost:8084/api/crypto"); // Crypto simulacija
             System.out.println("✅ METODE PLAĆANJA KREIRANE (Card, QR, PayPal, Crypto)");
