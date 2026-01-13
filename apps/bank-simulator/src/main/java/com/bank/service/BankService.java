@@ -62,8 +62,15 @@ public class BankService {
     // 2. METODA ZA KUPCA: Obrada plaćanja (skidanje novca)
     @Transactional
     public void processPayment(BankPaymentFormDTO form) {
+
         Transaction tx = transactionRepository.findByPaymentId(form.getPaymentId())
                 .orElseThrow(() -> new RuntimeException("Transakcija ne postoji ili je istekla!"));
+
+        if (tx.getTimestamp().plusMinutes(15).isBefore(LocalDateTime.now())) {
+            tx.setStatus(TransactionStatus.FAILED); // Ili EXPIRED
+            transactionRepository.save(tx);
+            throw new RuntimeException("Link za plaćanje je istekao! Imali ste 15 minuta.");
+        }
 
         if (tx.getStatus() != TransactionStatus.CREATED) {
             throw new RuntimeException("Transakcija je već obrađena!");
