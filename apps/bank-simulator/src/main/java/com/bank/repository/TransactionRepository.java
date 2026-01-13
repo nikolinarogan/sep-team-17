@@ -14,7 +14,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     // Pronalazi transakciju po internom ID-ju plaćanja (koji generiše Banka)
     Optional<Transaction> findByPaymentId(String paymentId);
 
-    // Opciono: Pronalazi transakciju po onom ID-ju koji je PSP poslao (STAN)
+    // Pronalazi transakciju po onom ID-ju koji je PSP poslao (STAN)
     Optional<Transaction> findByPspTransactionId(String pspTransactionId);
     Optional<Transaction> findTopByMerchantAndAmountAndStatusOrderByTimestampDesc(
             Merchant merchant,

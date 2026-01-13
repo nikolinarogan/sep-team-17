@@ -15,11 +15,7 @@ public class WebClientConfig {
     @Bean
     public WebClient webClient() {
         try {
-            // OVO REŠAVA TVOJ NOVI PROBLEM "No name matching localhost"
-            // InsecureTrustManagerFactory radi dve stvari:
-            // 1. Veruje sertifikatu (rešava PKIX - mada ti to već radiš preko truststore-a)
-            // 2. IGNORIŠE PROVERU IMENA (Hostname Verification) - Ovo ti sada treba!
-
+            // IGNORIŠE PROVJERU IMENA  - localhost
             SslContext sslContext = SslContextBuilder
                     .forClient()
                     .trustManager(InsecureTrustManagerFactory.INSTANCE)

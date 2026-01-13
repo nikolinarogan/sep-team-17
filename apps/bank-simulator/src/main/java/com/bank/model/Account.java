@@ -13,29 +13,24 @@ public class Account {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Broj računa (npr. 1234567890)
     @Column(nullable = false, unique = true)
     private String accountNumber;
 
-    // Ime vlasnika računa (može biti ime osobe ili ime firme Web Shop-a)
     @Column(nullable = false)
     private String ownerName;
 
-    @Column(name = "email") // Nije nullable=false, jer po specifikaciji nije obavezno
+    @Column(name = "email")
     private String email;
 
-    // Stanje na računu
     @Column(nullable = false)
     private BigDecimal balance;
 
-    // Rezervisana sredstva (bitno za stavku 5 iz specifikacije - "banka rezerviše sredstva" [cite: 76])
     @Column(nullable = false)
     private BigDecimal reservedFunds;
 
-    @Column(name = "pin") // <--- OVO DODAJEŠ
+    @Column(name = "pin")
     private String pin;
 
-    // Obavezan Getter i Setter
     public String getPin() {
         return pin;
     }

@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 public class BankPaymentFormDTO {
 
-    private String paymentId; // Hidden polje na formi (veza sa transakcijom)
+    private String paymentId;
 
     @Pattern(regexp = "^[0-9]{16}$", message = "PAN mora imati 16 cifara")
     private String pan;

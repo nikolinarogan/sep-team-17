@@ -63,6 +63,9 @@ public class PaymentTransaction {
     @Column(name = "execution_id")
     private String executionId;
 
+    @Column(name = "stan")
+    private String stan;
+
     // Čuva ACQUIRER_TIMESTAMP
     @Column(name = "service_timestamp")
     private LocalDateTime serviceTimestamp;
@@ -74,4 +77,7 @@ public class PaymentTransaction {
             this.uuid = java.util.UUID.randomUUID().toString();
         }
     }
+
+    public String getStan() { return stan; }
+    public void setStan(String stan) { this.stan = stan; }
 }

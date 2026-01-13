@@ -9,7 +9,6 @@ import java.util.Optional;
 
 @Repository
 public interface MerchantRepository extends JpaRepository<Merchant, Long> {
-    // Pronalazi prodavca (Web Shop) na osnovu ID-ja koji PSP šalje
     Optional<Merchant> findByMerchantId(String merchantId);
     Optional<Merchant> findByAccount(Account account);
 }

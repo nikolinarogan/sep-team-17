@@ -1,12 +1,9 @@
 package com.bank.service;
-
-import com.bank.config.WebClientConfig;
 import com.bank.dto.*;
 import com.bank.model.*;
 import com.bank.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
@@ -49,6 +46,7 @@ public class BankService {
         tx.setCurrency(request.getCurrency());
         tx.setTimestamp(LocalDateTime.now());
         tx.setStatus(TransactionStatus.CREATED);
+        tx.setStan(request.getStan());
 
         String internalPaymentId = UUID.randomUUID().toString();
         tx.setPaymentId(internalPaymentId);
@@ -58,7 +56,7 @@ public class BankService {
         // Vraćamo URL ka našem HTML-u
         String paymentUrl = "https://localhost:8082/pay.html?paymentId=" + internalPaymentId;
 
-        return new PspPaymentResponseDTO(paymentUrl, internalPaymentId);
+        return new PspPaymentResponseDTO(paymentUrl, internalPaymentId, request.getStan());
     }
 
     // 2. METODA ZA KUPCA: Obrada plaćanja (skidanje novca)
@@ -179,40 +177,36 @@ public class BankService {
 
     @Transactional
     public String processInternalTransfer(QrTransferRequestDTO request) {
-        // 1. PROVERA KUPCA (Login simulacija)
         Account payer = accountRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Korisnik ne postoji!"));
 
         if (payer.getPin() == null || !payer.getPin().equals(request.getPin())) {
             throw new RuntimeException("Pogrešan PIN!");
         }
-
-        // 2. PROVERA PRIMAOCA (Iz QR koda)
         Account receiver = accountRepository.findByAccountNumber(request.getReceiverAccount())
                 .orElseThrow(() -> new RuntimeException("Račun primaoca ne postoji!"));
 
-        // 3. PRONALAŽENJE TRANSAKCIJE (Detektivski posao 🕵️‍♂️)
-        // A) Nađi prodavca čiji je ovo račun
+        //Nađi prodavca čiji je ovo račun
         Merchant merchant = merchantRepository.findByAccount(receiver)
                 .orElseThrow(() -> new RuntimeException("Račun ne pripada registrovanom prodavcu!"));
 
         BigDecimal amount = BigDecimal.valueOf(request.getAmount());
 
-        // B) Nađi transakciju koja čeka, za tog prodavca i taj iznos
+        //Nađi transakciju koja čeka, za tog prodavca i taj iznos
         Transaction tx = transactionRepository.findTopByMerchantAndAmountAndStatusOrderByTimestampDesc(
                 merchant,
                 amount,
                 TransactionStatus.CREATED
         ).orElseThrow(() -> new RuntimeException("Transakcija nije pronađena ili je već plaćena!"));
 
-        // 4. TRANSFER NOVCA
+        //TRANSFER NOVCA
         if (payer.getBalance().compareTo(amount) < 0) {
             throw new RuntimeException("Nema dovoljno sredstava!");
         }
         payer.setBalance(payer.getBalance().subtract(amount));
         receiver.setBalance(receiver.getBalance().add(amount));
 
-        // 5. AŽURIRANJE STATUSA
+        //AŽURIRANJE STATUSA
         tx.setStatus(TransactionStatus.SUCCESS);
 
         accountRepository.save(payer);
@@ -221,15 +215,14 @@ public class BankService {
 
         System.out.println("✅ Banka: Novac prebačen. Transakcija ID: " + tx.getPaymentId());
 
-        // 6. JAVLJANJE PSP-u (CALLBACK)
+        //JAVLJANJE PSP-u (CALLBACK)
         String callbackUrl = PSP_CALLBACK_URL +
-                "?paymentId=" + tx.getPspTransactionId() + // <--- BITNO: PspTransactionId
+                "?paymentId=" + tx.getPspTransactionId() +
                 "&status=SUCCESS";
 
         try {
             System.out.println("📡 Šaljem signal PSP-u (WebClient): " + callbackUrl);
 
-            // Šaljemo signal (GET jer smo videli u logovima da PSP to očekuje)
             webClient.get()
                     .uri(callbackUrl)
                     .retrieve()
@@ -242,7 +235,6 @@ public class BankService {
             System.err.println("⚠️ Greška pri javljanju PSP-u: " + e.getMessage());
         }
 
-        // 👇 IZMENA 3: Vraćamo taj URL kontroleru
         return callbackUrl;
     }
 }
