@@ -35,8 +35,13 @@ public class Transaction {
     private LocalDateTime timestamp;
 
     @Enumerated(EnumType.STRING)
-    private TransactionStatus status; // PENDING, SUCCESS, FAILED, INSUFFICIENT_FUNDS
+    private TransactionStatus status;
 
-    // Podaci o kartici kojom je plaćeno (opciono, čuvamo samo maskirano)
+    // Podaci o kartici kojom je plaćeno
     private String maskedPan;
+    @Column(name = "stan")
+    private String stan;
+
+    public String getStan() { return stan; }
+    public void setStan(String stan) { this.stan = stan; }
 }

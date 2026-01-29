@@ -106,13 +106,11 @@ export class Checkout implements OnInit{
   onScanSuccess(scannedText: string) {
     console.log("Kamera je pročitala:", scannedText);
     
-    // Validacija: Poredimo ono što je kamera pročitala sa onim što je stiglo od banke
     if (scannedText === this.qrCodeString) {
 
       this.isLoading = true;
-      this.showScanner = false; // Odmah gasimo kameru
+      this.showScanner = false; 
 
-      // 2. Pozivamo PSP Backend da verifikuje i javi Banci
       this.paymentService.verifyQrScan(this.uuid, scannedText).subscribe({
         next: (res) => {
           alert("Plaćanje uspešno!");
@@ -127,5 +125,10 @@ export class Checkout implements OnInit{
     } else {
       alert("Skenirani kod ne odgovara ovoj transakciji!");
     }
+  }
+
+  openMbankingSimulator() {
+      const bankUrl = 'https://localhost:8082/mbanking.html'; 
+      window.open(bankUrl, '_blank');
   }
 }

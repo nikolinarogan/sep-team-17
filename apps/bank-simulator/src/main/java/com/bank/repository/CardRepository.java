@@ -8,7 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface CardRepository extends JpaRepository<Card, Long> {
-    // Spring Data JPA će automatski napraviti upit:
-    // "SELECT * FROM cards WHERE pan = ?"
     Optional<Card> findByPan(String pan);
 }

@@ -6,6 +6,9 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class PspPaymentResponseDTO {
-    private String paymentUrl; // Npr. http://localhost:8082/pay/{paymentId}
+    private String paymentUrl;
     private String paymentId;  // ID transakcije u banci
+    private String stan;
+    public String getStan() { return stan; }
+    public void setStan(String stan) { this.stan = stan; }
 }

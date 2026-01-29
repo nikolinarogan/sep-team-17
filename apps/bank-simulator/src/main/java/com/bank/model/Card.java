@@ -19,7 +19,6 @@ public class Card {
     @Column(nullable = false, length = 3)
     private String securityCode;
 
-    // Ime na kartici
     @Column(nullable = false)
     private String cardHolderName;
 

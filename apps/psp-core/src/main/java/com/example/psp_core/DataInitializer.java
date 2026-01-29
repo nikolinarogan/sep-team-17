@@ -55,7 +55,7 @@ public class DataInitializer implements CommandLineRunner {
         // 2. KREIRANJE GLOBALNIH METODA PLAĆANJA
         if (paymentMethodRepository.count() == 0) {
             createMethod("CARD", "https://localhost:8082/api/bank/card");   // Banka servis
-            createMethod("QR", "http://localhost:8082/api/qr");       // Banka servis (IPS)
+            createMethod("QR", "https://localhost:8082/api/qr");       // Banka servis (IPS)
             createMethod("PAYPAL", "http://localhost:8083/api/paypal"); // PayPal simulacija
             createMethod("CRYPTO", "http://localhost:8084/api/crypto"); // Crypto simulacija
             System.out.println("✅ METODE PLAĆANJA KREIRANE (Card, QR, PayPal, Crypto)");
@@ -65,7 +65,6 @@ public class DataInitializer implements CommandLineRunner {
         if (pspConfigRepository.count() == 0) {
             PspConfig linkConfig = new PspConfig();
             linkConfig.setConfigName("PAYMENT_LINK_TEMPLATE");
-            // Ovo je link na koji redirektujemo Web Shop. {uuid} se dinamički menja.
             linkConfig.setConfigValue("https://localhost:4201/checkout/{uuid}");
             pspConfigRepository.save(linkConfig);
             System.out.println("✅ KONFIGURACIJA KREIRANA (Frontend Link)");
@@ -75,23 +74,18 @@ public class DataInitializer implements CommandLineRunner {
         if (merchantRepository.count() == 0) {
             Merchant m = new Merchant();
             m.setName("Rent A Car Demo");
-            m.setWebShopUrl("https://localhost:4200"); // URL Web Shopa
-            m.setMerchantId("shop_123");       // API KEY
+            m.setWebShopUrl("https://localhost:4200");
+            m.setMerchantId("shop_123");
 
             m.setMerchantPassword(passwordEncoder.encode("shop_pass"));
 
             merchantRepository.save(m);
             System.out.println("✅ TEST MERCHANT KREIRAN: id='shop_123', pass='shop_pass'");
 
-            // 5. PRETPLATA: Povezujemo Shop sa Karticom i QR kodom
-            // Simuliramo da je Shop unio svoje bankovne podatke
-
             // a) Dodajemo CARD
             Map<String, String> cardCreds = new HashMap<>();
-            // Ovi ključevi (merchantId, merchantPassword) moraju biti isti oni koje
-            // tvoj CardPaymentService.java čita iz mape!
-            cardCreds.put("merchantId", "prodavac123");     // <--- OVO JE IZ BANKE
-            cardCreds.put("merchantPassword", "sifra123");  // <--- OVO JE IZ BANKE
+            cardCreds.put("merchantId", "prodavac123");
+            cardCreds.put("merchantPassword", "sifra123");
             addSubscription(m, "CARD", cardCreds);
 
             // b) Dodajemo QR

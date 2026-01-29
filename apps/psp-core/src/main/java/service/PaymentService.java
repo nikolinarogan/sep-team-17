@@ -103,6 +103,13 @@ public class PaymentService {
                 .or(() -> transactionRepository.findByExecutionId(uuid))
                 .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + uuid));
 
+        if (tx.getMerchantTimestamp().plusMinutes(30).isBefore(LocalDateTime.now())) {
+            if (tx.getStatus() == TransactionStatus.CREATED) {
+                tx.setStatus(TransactionStatus.FAILED);
+                transactionRepository.save(tx);
+            }
+            throw new RuntimeException("Link za plaćanje je istekao! (Maksimalno vreme: 30 min)");
+        }
         // 3. Olabavili smo proveru. Ako je status SUCCESS, samo ćemo to i vratiti frontendu,
         // umesto da bacimo grešku. Frontend će znati šta s tim.
         /*
@@ -232,8 +239,7 @@ public class PaymentService {
         Merchant merchant = merchantRepository.findByMerchantId(tx.getMerchantId())
                 .orElseThrow(() -> new RuntimeException("Prodavac ne postoji"));
 
-        // Sastavljamo URL: merchant_url + /api/payment/callback/status
-        String baseWebhookUrl = merchant.getWebShopUrl() + "/api/payment/callback";
+        String baseWebhookUrl = merchant.getWebShopUrl();
         String targetUrl;
 
         if (tx.getStatus() == TransactionStatus.SUCCESS) {

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <title>mBanking Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .phone-frame {
+            background-color: white; width: 320px; height: 640px; border-radius: 35px; padding: 25px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column;
+            border: 12px solid #1a252f; position: relative; overflow-y: auto;
+        }
+        .phone-notch {
+            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 120px; height: 25px; background-color: #1a252f;
+            border-bottom-left-radius: 15px; border-bottom-right-radius: 15px;
+        }
+        h2 { text-align: center; color: #c0392b; margin-top: 20px; margin-bottom: 30px; }
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: 600; display: block; margin-bottom: 5px; font-size: 13px; color: #34495e; }
+        input[type=text], input[type=password], input[type=file] {
+            width: 93%; padding: 10px; border: 1px solid #bdc3c7; border-radius: 8px; font-size: 14px; margin-bottom: 5px;
+        }
+        .result-box {
+            background: #ecf0f1; padding: 15px; border-radius: 10px; margin-top: 20px; font-size: 13px;
+            border-left: 4px solid #c0392b;
+        }
+        .btn-pay {
+            background-color: #c0392b; color: white; border: none; padding: 15px; width: 100%;
+            border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: auto; margin-bottom: 10px;
+            transition: background 0.3s;
+        }
+        .btn-pay:hover { background-color: #e74c3c; }
+        .btn-pay:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        .logo { text-align: center; margin-bottom: 10px; font-size: 20px; font-weight: bold; color: #2c3e50; display: flex; justify-content: center; align-items: center; gap: 10px; }
+
+        /* STILOVI ZA SUCCESS PORUKU */
+        #successMessage { display: none; text-align: center; margin-top: 50px; animation: fadeIn 0.5s; }
+        .success-icon { font-size: 80px; color: #27ae60; margin-bottom: 20px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="phone-frame">
+    <div class="phone-notch"></div>
+    <div class="logo">🏦 Moja Banka</div>
+
+    <div id="formContainer">
+        <h2>IPS Skeniraj</h2>
+
+        <div class="form-group">
+            <label>Korisničko ime / Email:</label>
+            <input type="text" id="payerEmail" value="pera@example.com" placeholder="Unesite email">
+        </div>
+
+        <div class="form-group">
+            <label>PIN:</label>
+            <input type="password" id="payerPin" placeholder="Unesite PIN (npr. 1111)">
+        </div>
+
+        <div class="form-group">
+            <label>Učitaj QR screenshot:</label>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <p id="errorMsg" style="color:red; font-size: 12px; display: none; text-align: center;"></p>
+
+        <div id="decodedData" style="display:none; flex-grow: 1; flex-direction: column;">
+            <div class="result-box">
+                <p><strong>Primalac:</strong> <span id="lblReceiver"></span></p>
+                <p><strong>Račun:</strong> <span id="lblAccount"></span></p>
+                <p style="font-size: 16px; color: #27ae60;"><strong>Iznos:</strong> <span id="lblAmount"></span> RSD</p>
+            </div>
+
+            <button id="btnPay" class="btn-pay" onclick="izvrsiPlacanje()">POTVRDI PLAĆANJE</button>
+        </div>
+    </div>
+
+    <div id="successMessage">
+        <div class="success-icon">✅</div>
+        <h3 style="color: #27ae60;">Plaćanje Uspešno!</h3>
+        <p>Transakcija je proknjižena.</p>
+        <p style="font-size: 12px; color: gray;">Vraćamo vas u prodavnicu...</p>
+    </div>
+
+</div>
+
+<script>
+    let paymentData = {};
+
+    // --- DEKODIRANJE QR KODA ---
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                context.drawImage(img, 0, 0, img.width, img.height);
+
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                if (code) {
+                    console.log("QR Raw:", code.data);
+                    parseIPS(code.data);
+                } else {
+                    showError("QR kod nije prepoznat na slici.");
+                }
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    function parseIPS(ipsString) {
+        const parts = ipsString.split('|');
+        paymentData = {};
+
+        parts.forEach(part => {
+            if (part.startsWith('R:')) paymentData.receiverAccount = part.substring(2);
+            if (part.startsWith('N:')) paymentData.receiverName = part.substring(2);
+            if (part.startsWith('I:')) {
+                let rawAmount = part.substring(2).replace('RSD', '').replace('.', '').replace(',', '.');
+                paymentData.amount = parseFloat(rawAmount);
+            }
+        });
+
+        document.getElementById('lblReceiver').innerText = paymentData.receiverName || 'Nepoznato';
+        document.getElementById('lblAccount').innerText = paymentData.receiverAccount;
+        document.getElementById('lblAmount').innerText = paymentData.amount;
+
+        document.getElementById('decodedData').style.display = 'flex';
+        document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    function showError(msg) {
+        document.getElementById('errorMsg').innerText = msg;
+        document.getElementById('errorMsg').style.display = 'block';
+        document.getElementById('decodedData').style.display = 'none';
+    }
+
+    // --- SLANJE NA BACKEND ---
+    async function izvrsiPlacanje() {
+        const btn = document.getElementById('btnPay');
+        const emailInput = document.getElementById('payerEmail');
+        const pinInput = document.getElementById('payerPin');
+
+        // 👇 DEFINIŠEMO ELEMENTE KOJI SU FALILI
+        const formContainer = document.getElementById('formContainer');
+        const successDiv = document.getElementById('successMessage');
+
+        if (!emailInput || !pinInput) {
+            alert("Greška: Input polja nisu nađena!");
+            return;
+        }
+
+        const emailVal = emailInput.value;
+        const pinVal = pinInput.value;
+
+        if (!emailVal || !pinVal) {
+            alert("Molimo unesite Email i PIN!");
+            return;
+        }
+
+        const payload = {
+            email: emailVal,
+            pin: pinVal,
+            receiverAccount: paymentData.receiverAccount,
+            amount: paymentData.amount
+        };
+
+        btn.disabled = true;
+        btn.innerText = "Obrada...";
+
+        try {
+            const response = await fetch('/api/bank/transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // ✅ SAKRIVAMO FORMU
+                if(formContainer) formContainer.style.display = 'none';
+
+                // ✅ PRIKAZUJEMO USPEH
+                if(successDiv) successDiv.style.display = 'block';
+
+                // ✅ REDIREKCIJA
+                if (data.redirectUrl) {
+                    console.log("Preusmeravam na: " + data.redirectUrl);
+                    setTimeout(() => {
+                        window.location.href = data.redirectUrl;
+                    }, 1500);
+                }
+            } else {
+                alert("❌ Greška: " + (data.message || "Nepoznata greška"));
+                btn.disabled = false;
+                btn.innerText = "POTVRDI PLAĆANJE";
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Greška: " + e.message);
+            btn.disabled = false;
+            btn.innerText = "POTVRDI PLAĆANJE";
+        }
+    }
+</script>
+
+</body>
+</html>

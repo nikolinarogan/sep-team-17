@@ -1,9 +1,11 @@
 package service;
 
+import model.Merchant;
 import model.PaymentTransaction;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import repository.MerchantRepository;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,15 +14,20 @@ import java.util.Map;
 public class QrPaymentService {
     private static final String BANK_QR_URL = "https://localhost:8082/api/bank/qr-initialize";
     private final RestTemplate restTemplate;
+    private final MerchantRepository merchantRepository;
 
-    public QrPaymentService(RestTemplate restTemplate) {
+    public QrPaymentService(RestTemplate restTemplate, MerchantRepository merchantRepository) {
         this.restTemplate = restTemplate;
+        this.merchantRepository = merchantRepository;
     }
 
     public String getIpsQrData(PaymentTransaction transaction) {
+        Merchant merchant = merchantRepository.findByMerchantId(transaction.getMerchantId())
+                .orElseThrow(() -> new RuntimeException("Prodavac sa ID-jem " + transaction.getMerchantId() + " nije pronađen!"));
+
         Map<String, Object> request = new HashMap<>();
-        request.put("merchantId", "prodavac123"); // U realnosti vučeš iz baze
-        request.put("merchantPassword", "sifra123");
+        request.put("merchantId", merchant.getMerchantId());
+        request.put("merchantPassword", merchant.getMerchantPassword());
         request.put("amount", transaction.getAmount());
         request.put("currency", transaction.getCurrency());
         request.put("pspTransactionId", transaction.getUuid());

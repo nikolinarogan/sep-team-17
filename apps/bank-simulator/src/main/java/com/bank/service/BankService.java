@@ -1,10 +1,10 @@
 package com.bank.service;
-
 import com.bank.dto.*;
 import com.bank.model.*;
 import com.bank.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,12 +18,16 @@ public class BankService {
     private final MerchantRepository merchantRepository;
     private final TransactionRepository transactionRepository;
 
+    private final WebClient webClient;
+    private static final String PSP_CALLBACK_URL = "https://localhost:8443/api/payments/payment-callback";
+
     public BankService(AccountRepository accountRepository, CardRepository cardRepository,
-                       MerchantRepository merchantRepository, TransactionRepository transactionRepository) {
+                       MerchantRepository merchantRepository, TransactionRepository transactionRepository, WebClient webClient) {
         this.accountRepository = accountRepository;
         this.cardRepository = cardRepository;
         this.merchantRepository = merchantRepository;
         this.transactionRepository = transactionRepository;
+        this.webClient = webClient;
     }
 
     // 1. METODA ZA PSP: Kreiranje URL-a za plaćanje
@@ -42,6 +46,7 @@ public class BankService {
         tx.setCurrency(request.getCurrency());
         tx.setTimestamp(LocalDateTime.now());
         tx.setStatus(TransactionStatus.CREATED);
+        tx.setStan(request.getStan());
 
         String internalPaymentId = UUID.randomUUID().toString();
         tx.setPaymentId(internalPaymentId);
@@ -51,14 +56,21 @@ public class BankService {
         // Vraćamo URL ka našem HTML-u
         String paymentUrl = "https://localhost:8082/pay.html?paymentId=" + internalPaymentId;
 
-        return new PspPaymentResponseDTO(paymentUrl, internalPaymentId);
+        return new PspPaymentResponseDTO(paymentUrl, internalPaymentId, request.getStan());
     }
 
     // 2. METODA ZA KUPCA: Obrada plaćanja (skidanje novca)
     @Transactional
     public void processPayment(BankPaymentFormDTO form) {
+
         Transaction tx = transactionRepository.findByPaymentId(form.getPaymentId())
                 .orElseThrow(() -> new RuntimeException("Transakcija ne postoji ili je istekla!"));
+
+        if (tx.getTimestamp().plusMinutes(15).isBefore(LocalDateTime.now())) {
+            tx.setStatus(TransactionStatus.FAILED); // Ili EXPIRED
+            transactionRepository.save(tx);
+            throw new RuntimeException("Link za plaćanje je istekao! Imali ste 15 minuta.");
+        }
 
         if (tx.getStatus() != TransactionStatus.CREATED) {
             throw new RuntimeException("Transakcija je već obrađena!");
@@ -168,5 +180,68 @@ public class BankService {
         ips.append("|S:").append(description); // Tag S - opcioni, max 35 karaktera
 
         return ips.toString();
+    }
+
+    @Transactional
+    public String processInternalTransfer(QrTransferRequestDTO request) {
+        Account payer = accountRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Korisnik ne postoji!"));
+
+        if (payer.getPin() == null || !payer.getPin().equals(request.getPin())) {
+            throw new RuntimeException("Pogrešan PIN!");
+        }
+        Account receiver = accountRepository.findByAccountNumber(request.getReceiverAccount())
+                .orElseThrow(() -> new RuntimeException("Račun primaoca ne postoji!"));
+
+        //Nađi prodavca čiji je ovo račun
+        Merchant merchant = merchantRepository.findByAccount(receiver)
+                .orElseThrow(() -> new RuntimeException("Račun ne pripada registrovanom prodavcu!"));
+
+        BigDecimal amount = BigDecimal.valueOf(request.getAmount());
+
+        //Nađi transakciju koja čeka, za tog prodavca i taj iznos
+        Transaction tx = transactionRepository.findTopByMerchantAndAmountAndStatusOrderByTimestampDesc(
+                merchant,
+                amount,
+                TransactionStatus.CREATED
+        ).orElseThrow(() -> new RuntimeException("Transakcija nije pronađena ili je već plaćena!"));
+
+        //TRANSFER NOVCA
+        if (payer.getBalance().compareTo(amount) < 0) {
+            throw new RuntimeException("Nema dovoljno sredstava!");
+        }
+        payer.setBalance(payer.getBalance().subtract(amount));
+        receiver.setBalance(receiver.getBalance().add(amount));
+
+        //AŽURIRANJE STATUSA
+        tx.setStatus(TransactionStatus.SUCCESS);
+
+        accountRepository.save(payer);
+        accountRepository.save(receiver);
+        transactionRepository.save(tx);
+
+        System.out.println("✅ Banka: Novac prebačen. Transakcija ID: " + tx.getPaymentId());
+
+        //JAVLJANJE PSP-u (CALLBACK)
+        String callbackUrl = PSP_CALLBACK_URL +
+                "?paymentId=" + tx.getPspTransactionId() +
+                "&status=SUCCESS";
+
+        try {
+            System.out.println("📡 Šaljem signal PSP-u (WebClient): " + callbackUrl);
+
+            webClient.get()
+                    .uri(callbackUrl)
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
+
+            System.out.println("✅ Signal uspešno poslat!");
+
+        } catch (Exception e) {
+            System.err.println("⚠️ Greška pri javljanju PSP-u: " + e.getMessage());
+        }
+
+        return callbackUrl;
     }
 }

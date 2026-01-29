@@ -37,7 +37,7 @@ export interface Order {
   paymentCreatedAt?: string;
   
   // Flag za aktivnu uslugu
-  isActive?: boolean;
+  active?: boolean;
 }
 
 export interface PaymentResponse {

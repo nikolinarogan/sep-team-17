@@ -21,7 +21,6 @@ public class BankController {
         this.bankService = bankService;
     }
 
-    // 1. OVO JE ENDPOINT KOJI GAĐAŠ IZ POSTMANA
     @PostMapping("/card")
     public ResponseEntity<PspPaymentResponseDTO> createPaymentUrl(@RequestBody PspPaymentRequestDTO request) {
         System.out.println("--- PRIMLJEN ZAHTEV OD PSP-a ---");
@@ -34,7 +33,6 @@ public class BankController {
         return ResponseEntity.ok(response);
     }
 
-    // 2. OVO JE ENDPOINT KOJI GAĐAŠ SA FORME (HTML)
     @PostMapping("/pay")
     public ResponseEntity<Map<String, String>> processPayment(@Valid @RequestBody BankPaymentFormDTO paymentForm) {
         System.out.println("--- OBRADA PLAĆANJA ZA ID: " + paymentForm.getPaymentId() + " ---");
@@ -42,35 +40,32 @@ public class BankController {
         Map<String, String> response = new HashMap<>();
 
         try {
-            // 1. Pozivamo servis da skine novac
             bankService.processPayment(paymentForm);
-
-            // 2. Ako je sve prošlo bez greške (SUCCESS)
-            // Pravimo URL na koji Frontend treba da preusmeri korisnika
             String redirectUrl = PSP_CALLBACK_URL +
                     "?paymentId=" + paymentForm.getPaymentId() +
                     "&status=SUCCESS";
 
             response.put("status", "SUCCESS");
-            response.put("redirectUrl", redirectUrl); // <--- OVO JE KLJUČNO
+            response.put("redirectUrl", redirectUrl);
 
+            //GLOBAL_TRANSACTION_ID (To je naš interni ID transakcije)
+            response.put("GLOBAL_TRANSACTION_ID", paymentForm.getPaymentId());
+
+            //ACQUIRER_TIMESTAMP (Trenutno vrijeme banke)
+            response.put("ACQUIRER_TIMESTAMP", java.time.LocalDateTime.now().toString());
             return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
-            // 3. Ako je puklo (npr. Nema sredstava, Loš PIN...), hvatamo grešku
             System.out.println("Transakcija neuspešna: " + e.getMessage());
 
-            // Čak i kad je greška, moramo vratiti korisnika na PSP sa statusom FAILED
             String redirectUrl = PSP_CALLBACK_URL +
                     "?paymentId=" + paymentForm.getPaymentId() +
                     "&status=FAILED";
 
             response.put("status", "FAILED");
             response.put("message", e.getMessage());
-            response.put("redirectUrl", redirectUrl); // Šaljemo ga nazad da vidi grešku na WebShopu
-
-            // Vraćamo 200 OK jer smo uspešno obradili zahtev (iako je ishod plaćanja neuspeh)
-            // Frontend samo čita "redirectUrl" i radi posao.
+            response.put("redirectUrl", redirectUrl);
+            response.put("ACQUIRER_TIMESTAMP", java.time.LocalDateTime.now().toString());
             return ResponseEntity.ok(response);
         }
     }
@@ -88,5 +83,27 @@ public class BankController {
         response.put("paymentId", bankResponse.getPaymentId());
 
         return ResponseEntity.ok(response);
+    }
+
+    //ENDPOINT ZA IPS SKENIRAJ (Dolazi sa mbanking.html)
+    @PostMapping("/transfer")
+    public ResponseEntity<?> processQrPayment(@RequestBody QrTransferRequestDTO request) {
+        System.out.println("--- PRIMLJEN ZAHTEV ZA QR TRANSFER (mBanking) ---");
+
+        try {
+            String redirectUrl = bankService.processInternalTransfer(request);
+
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "SUCCESS");
+            response.put("message", "QR Plaćanje uspešno izvršeno!");
+            response.put("redirectUrl", redirectUrl);
+            response.put("GLOBAL_TRANSACTION_ID", java.util.UUID.randomUUID().toString()); // Ili izvuci iz servisa ako možeš
+            response.put("ACQUIRER_TIMESTAMP", java.time.LocalDateTime.now().toString());
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            System.out.println("Greška pri QR plaćanju: " + e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 }

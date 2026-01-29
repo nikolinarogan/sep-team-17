@@ -26,7 +26,7 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // PROVERA: Ako već imamo podatke, ne ubacuj ništa da ne bi došlo do greške
+        // PROVJERA: Ako već imamo podatke, ne ubacuj ništa da ne bi došlo do greške
         if (accountRepository.count() > 0) {
             System.out.println("Podaci već postoje u bazi. Preskačem inicijalizaciju.");
             return;
@@ -35,41 +35,37 @@ public class DataSeeder implements CommandLineRunner {
         System.out.println("--- KREIRANJE POČETNIH PODATAKA ZA BANKU ---");
 
         // 1. Kreiramo RAČUN ZA PRODAVCA (Web Shop - Rent A Car)
-        // Na ovaj račun će legati pare od prodaje
         Account shopAccount = new Account();
         shopAccount.setOwnerName("Rent-A-Car Agency");
-        shopAccount.setAccountNumber("111-111111-11"); // Broj računa prodavca
-        shopAccount.setBalance(new BigDecimal("0.00")); // Počinju sa 0 dinara
+        shopAccount.setAccountNumber("111-111111-11");
+        shopAccount.setBalance(new BigDecimal("0.00"));
         shopAccount.setReservedFunds(new BigDecimal("0.00"));
         shopAccount.setEmail("shop@example.com");
         accountRepository.save(shopAccount);
 
         // 2. Registrujemo PRODAVCA u sistemu Banke
-        // Ovi podaci (ID i Password) se moraju poklapati sa onim što PSP šalje!
         Merchant merchant = new Merchant();
-        merchant.setMerchantId("prodavac123");      // <-- OVO KORISTI PSP
-        merchant.setMerchantPassword("sifra123");   // <-- OVO KORISTI PSP
-        merchant.setAccount(shopAccount);           // Vezujemo ga za gornji račun
+        merchant.setMerchantId("prodavac123");
+        merchant.setMerchantPassword("sifra123");
+        merchant.setAccount(shopAccount);
         merchantRepository.save(merchant);
 
-        // 3. Kreiramo RAČUN ZA KUPCA (Tebe)
-        // Sa ovog računa ćeš plaćati
+        // 3. Kreiramo RAČUN ZA KUPCA
         Account buyerAccount = new Account();
         buyerAccount.setOwnerName("Pera Peric");
         buyerAccount.setAccountNumber("222-222222-22");
-        buyerAccount.setBalance(new BigDecimal("100000.00")); // Imaš 100.000 dinara početno
+        buyerAccount.setBalance(new BigDecimal("100000.00"));
         buyerAccount.setReservedFunds(new BigDecimal("0.00"));
         buyerAccount.setEmail("pera@example.com");
         accountRepository.save(buyerAccount);
 
         // 4. Izdajemo KARTICU kupcu
-        // Ove podatke ćeš kucati na Frontend formi
         Card card = new Card();
-        card.setPan("1234567812345678"); // Broj kartice (koristi ovaj za test)
+        card.setPan("1234567812345678");
         card.setCardHolderName("PERA PERIC");
-        card.setExpirationDate("12/30"); // Važi do decembra 2030.
-        card.setSecurityCode("123");     // CVV
-        card.setAccount(buyerAccount);   // Vezana za tvoj račun
+        card.setExpirationDate("12/30");
+        card.setSecurityCode("123");
+        card.setAccount(buyerAccount);  
         cardRepository.save(card);
 
         System.out.println("--- PODACI USPEŠNO UPISANI ---");

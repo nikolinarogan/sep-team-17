@@ -32,8 +32,8 @@ export class OrderHistoryComponent implements OnInit {
     this.orderService.getUserOrders().subscribe({
       next: (orders) => {
         this.allOrders = orders;
-        this.activeOrders = orders.filter(order => order.isActive === true);
-        this.pastOrders = orders.filter(order => order.isActive === false || !order.isActive);
+        this.activeOrders = orders.filter(order => order.active === true);
+        this.pastOrders = orders.filter(order => order.active === false || !order.active);
         this.isLoading = false;
       },
       error: (error) => {

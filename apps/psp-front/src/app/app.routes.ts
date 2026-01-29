@@ -7,7 +7,7 @@ import { MerchantDetails } from './pages/merchant-details/merchant-details';
 
 export const routes: Routes = [
     { path: 'checkout/:uuid', component: Checkout },
-    { path: '', redirectTo: 'checkout/test', pathMatch: 'full' },
+    { path: '', redirectTo: 'admin/login', pathMatch: 'full' },
     { path: 'admin/login', component: AdminLogin},
     { path: 'admin/dashboard', component: AdminDashboard },
     { path: 'admin/methods', component: PaymentMethods },

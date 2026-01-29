@@ -15,11 +15,10 @@ public class Merchant {
     @Column(nullable = false, unique = true)
     private String merchantId;
 
-    // Password za proveru (Tabela 2 - implicirano validacijom [cite: 70])
     @Column(nullable = false)
     private String merchantPassword;
 
-    // VEZA: Na koji račun u Banci ležu pare ovom prodavcu?
+    // VEZA: Na koji račun u Banci ležu pare ovom prodavcu
     @ManyToOne
     @JoinColumn(name = "account_id", nullable = false)
     private Account account;
