@@ -90,6 +90,25 @@ public class BankService {
             throw new RuntimeException("Pogrešan CVV kod!");
         }
 
+        String expDate = form.getExpirationDate(); // Očekivani format "MM/YY"
+        if (expDate == null || !expDate.matches("(0[1-9]|1[0-2])/[0-9]{2}")) {
+            throw new RuntimeException("Neispravan format datuma isteka (MM/YY)!");
+        }
+
+        String[] parts = expDate.split("/");
+        int expMonth = Integer.parseInt(parts[0]);
+        int expYear = Integer.parseInt("20" + parts[1]); // Pretvaramo npr. "26" u 2026
+
+        LocalDateTime now = LocalDateTime.now();
+        int currentMonth = now.getMonthValue();
+        int currentYear = now.getYear();
+
+        if (expYear < currentYear || (expYear == currentYear && expMonth < currentMonth)) {
+            tx.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(tx);
+            throw new RuntimeException("Kartica je istekla!");
+        }
+
         Account buyerAccount = card.getAccount();
         if (buyerAccount.getBalance().compareTo(tx.getAmount()) < 0) {
             tx.setStatus(TransactionStatus.INSUFFICIENT_FUNDS);

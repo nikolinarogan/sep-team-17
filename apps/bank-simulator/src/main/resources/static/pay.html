@@ -120,6 +120,27 @@
             return;
         }
 
+        const expValue = document.getElementById('expirationDate').value;
+        const expRegex = /^(0[1-9]|1[0-2])\/?([0-9]{2})$/;
+
+        if (!expRegex.test(expValue)) {
+            statusDiv.innerText = "Greška: Neispravan format datuma (MM/YY)!";
+            statusDiv.style.display = "block";
+            return;
+        }
+
+        const today = new Date();
+        const currentMonth = today.getMonth() + 1;
+        const currentYear = parseInt(today.getFullYear().toString().slice(-2));
+
+        const [inputMonth, inputYear] = expValue.split('/').map(num => parseInt(num));
+
+        if (inputYear < currentYear || (inputYear === currentYear && inputMonth < currentMonth)) {
+            statusDiv.innerText = "Greška: Kartica je istekla!";
+            statusDiv.style.display = "block";
+            return;
+        }
+
         const formData = {
             paymentId: document.getElementById('paymentId').value,
             pan: panValue,
