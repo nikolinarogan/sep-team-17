@@ -40,13 +40,10 @@ public class BankController {
         Map<String, String> response = new HashMap<>();
 
         try {
-            bankService.processPayment(paymentForm);
-            String redirectUrl = PSP_CALLBACK_URL +
-                    "?paymentId=" + paymentForm.getPaymentId() +
-                    "&status=SUCCESS";
+            String callbackUrl = bankService.processPayment(paymentForm);
 
             response.put("status", "SUCCESS");
-            response.put("redirectUrl", redirectUrl);
+            response.put("redirectUrl", callbackUrl);
 
             //GLOBAL_TRANSACTION_ID (To je naš interni ID transakcije)
             response.put("GLOBAL_TRANSACTION_ID", paymentForm.getPaymentId());

@@ -99,4 +99,11 @@ public class PaymentController {
         String redirectUrl = paymentService.finaliseTransaction(callback, "QR_CODE");
         return ResponseEntity.ok(redirectUrl);
     }
+
+    @GetMapping("/status/{merchantId}/{merchantOrderId}")
+    public ResponseEntity<PaymentStatusDTO> checkStatus(
+            @PathVariable String merchantId,
+            @PathVariable String merchantOrderId) {
+        return ResponseEntity.ok(paymentService.checkTransactionStatus(merchantId, merchantOrderId));
+    }
 }

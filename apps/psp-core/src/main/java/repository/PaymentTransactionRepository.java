@@ -10,4 +10,5 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
 
     boolean existsByMerchantIdAndMerchantOrderId(String merchantId, String merchantOrderId);
     Optional<PaymentTransaction> findByExecutionId(String executionId);
+    Optional<PaymentTransaction> findByMerchantIdAndMerchantOrderId(String merchantId, String merchantOrderId);
 }

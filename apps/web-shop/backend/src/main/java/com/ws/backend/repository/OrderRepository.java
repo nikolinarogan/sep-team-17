@@ -1,5 +1,6 @@
 package com.ws.backend.repository;
 
+import com.ws.backend.model.Equipment;
 import com.ws.backend.model.Order;
 import com.ws.backend.model.OrderStatus;
 import com.ws.backend.model.OrderType;
@@ -9,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -35,5 +38,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Pronalazi sve narudžbine za određenog korisnika, sortirane po datumu kreiranja (najnovije prvo)
      */
     @Query("SELECT o FROM Order o WHERE o.user.id = :userId ORDER BY o.createdAt DESC")
-    java.util.List<Order> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+    List<Order> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+
+    List<Order> findByOrderStatusAndCreatedAtBefore(OrderStatus status, LocalDateTime time);
+
 }

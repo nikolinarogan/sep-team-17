@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/auth/register", "/auth/login", "/auth/activate", "/auth/change-password").permitAll()
-                        .requestMatchers("/api/orders/**", "/api/payment/callback/**").permitAll()
+                        .requestMatchers("/api/orders/**", "/api/payment/callback/**", "/api/orders/status/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
