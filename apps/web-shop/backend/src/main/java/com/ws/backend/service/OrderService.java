@@ -1,15 +1,13 @@
 package com.ws.backend.service;
 
-import com.ws.backend.dto.OrderRequestDTO;
-import com.ws.backend.dto.PaymentResponseDTO;
-import com.ws.backend.dto.PaymentStatusDTO;
-import com.ws.backend.dto.PspRequestDTO;
+import com.ws.backend.dto.*;
 import com.ws.backend.model.*;
 import com.ws.backend.repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -19,6 +17,7 @@ import javax.net.ssl.SSLSession;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Service
 public class OrderService {
@@ -233,14 +232,13 @@ public class OrderService {
      * Dobavljanje svih narudžbina korisnika sa detaljima transakcije
      * Razdvaja aktivne i prošle usluge
      */
-    public java.util.List<com.ws.backend.dto.OrderHistoryDTO> getUserOrders(Long userId) {
-        java.util.List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public List<OrderHistoryDTO> getUserOrders(Long userId) {
+        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         LocalDateTime now = LocalDateTime.now();
         
         return orders.stream().map(order -> {
-            com.ws.backend.dto.OrderHistoryDTO dto = new com.ws.backend.dto.OrderHistoryDTO();
+            OrderHistoryDTO dto = new OrderHistoryDTO();
             
-            // Order osnovni podaci
             dto.setOrderId(order.getId());
             dto.setType(order.getType());
             dto.setOrderStatus(order.getOrderStatus());
@@ -303,5 +301,83 @@ public class OrderService {
             
             return dto;
         }).collect(java.util.stream.Collectors.toList());
+    }
+
+    // Izvršava se svakih 60 sekundi (promeni po potrebi, npr. 300000 za 5 min)
+    @Scheduled(fixedRate = 10000) // Provera svakog minuta
+    public void reconcilePendingOrders() {
+        System.out.println("--- SCHEDULER: Provera zaglavljenih porudžbina ---");
+
+        // Uzimamo sve PENDING porudžbine starije od 5 minuta (da damo korisniku vremena da kuca karticu)
+        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
+        List<Order> stuckOrders = orderRepository.findByOrderStatusAndCreatedAtBefore(OrderStatus.PENDING, fiveMinutesAgo);
+
+        for (Order order : stuckOrders) {
+            try {
+                PaymentTransaction tx = transactionRepository.findByOrderId(order.getId()).orElse(null);
+                if (tx == null) continue;
+
+                // 1. Pripremi URL (sa onim fix-om za /init)
+                String cleanBaseUrl = pspApiUrl.replace("/init", "");
+                String checkUrl = cleanBaseUrl + "/status/" + merchantId + "/" + tx.getMerchantOrderId();
+
+                try {
+                    // 2. Pitaj PSP
+                    ResponseEntity<PaymentStatusDTO> response = restTemplate.getForEntity(checkUrl, PaymentStatusDTO.class);
+                    PaymentStatusDTO pspData = response.getBody();
+
+                    if (pspData != null) {
+                        String pspStatus = pspData.getStatus(); // "CREATED", "SUCCESS", "FAILED"...
+
+                        // --- LOGIKA ZA TIMEOUT ---
+
+                        // Slučaj A: Uspešno ili Neuspešno (Konačni statusi)
+                        if ("SUCCESS".equals(pspStatus)) {
+                            processCallback(pspData, OrderStatus.CONFIRMED);
+                            System.out.println("Order " + order.getId() + " -> CONFIRMED (Naknadna provera)");
+                        }
+                        else if ("FAILED".equals(pspStatus) || "ERROR".equals(pspStatus)) {
+                            processCallback(pspData, OrderStatus.CANCELLED);
+                            System.out.println("Order " + order.getId() + " -> CANCELLED (PSP odbio)");
+                        }
+                        // Slučaj B: Korisnik još nije završio (CREATED / WAITING)
+                        else {
+                            // Proveravamo da li je isteklo 30 minuta od kreiranja porudžbine
+                            long minutesSinceCreation = ChronoUnit.MINUTES.between(order.getCreatedAt(), LocalDateTime.now());
+
+                            if (minutesSinceCreation > 1) {
+                                // ISTEKLO VREME! Otkazujemo porudžbinu da oslobodimo vozilo.
+                                System.out.println("Order " + order.getId() + " je PENDING predugo (" + minutesSinceCreation + " min). Otkazujem.");
+
+                                // Ručno otkazivanje jer nemamo status od PSP-a da prosledimo u processCallback
+                                order.setOrderStatus(OrderStatus.CANCELLED);
+                                orderRepository.save(order);
+
+                                // Ažuriraj i lokalnu transakciju da znamo da je istekla
+                                tx.setStatus(OrderStatus.CANCELLED);
+                                transactionRepository.save(tx);
+                            } else {
+                                System.out.println("Order " + order.getId() + " je još uvek " + pspStatus + ". Čekamo još malo...");
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Greška u komunikaciji sa PSP za order " + tx.getMerchantOrderId() + ": " + e.getMessage());
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    // Pomoćna metoda za mapiranje statusa
+    private OrderStatus mapPspStatusToOrderStatus(String pspStatus) {
+        switch (pspStatus) {
+            case "SUCCESS": return OrderStatus.CONFIRMED;
+            case "FAILED": return OrderStatus.CANCELLED;
+            case "ERROR": return OrderStatus.ERROR;
+            default: return OrderStatus.PENDING;
+        }
     }
 }

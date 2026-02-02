@@ -91,9 +91,6 @@ public class PaymentService {
 
     /**
      * Dobavljanje podataka za Checkout stranu
-     */
-    /**
-     * Dobavljanje podataka za Checkout stranu
      * IZMENA: Sada tražimo i po Bankinom ID-u (executionId) i ne pucamo ako je status SUCCESS
      */
     public CheckoutResponseDTO getCheckoutData(String uuid) {
@@ -138,62 +135,7 @@ public class PaymentService {
                 availableMethods
         );
     }
-    /**
-     * Finalizacija transakcije
-     */
-   /* @Transactional
-    public void finaliseTransaction(dto.PaymentCallbackDTO callback) {
-        // 1. Pronađi transakciju u bazi
-        PaymentTransaction tx = transactionRepository.findByUuid(callback.getPaymentId())
-                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena."));
 
-        // 2. Parsiraj i postavi novi status
-        try {
-            TransactionStatus newStatus = TransactionStatus.valueOf(callback.getStatus());
-            tx.setStatus(newStatus);
-        } catch (Exception e) {
-            // Ako stigne nepoznat status, stavi ERROR
-            tx.setStatus(TransactionStatus.ERROR);
-        }
-
-        // 3. Sačuvaj bitne podatke iz banke/servisa (STAN, Global ID)
-        tx.setExternalTransactionId(callback.getExternalTransactionId());
-        tx.setExecutionId(callback.getExecutionId());
-        tx.setServiceTimestamp(callback.getServiceTimestamp());
-
-        // 4. Snimi promjene
-        transactionRepository.save(tx);
-
-
-
-        // MARO, OVAKO NESTO TREBA DA ODRADIS, DA BI MI POSLALA OVAJ DTO. POGLEDAJ KAKO SAM U SHOPU NAPRAVILA OVAJ REST ZA KOMUNIKACIJU
-        // MOZES ISKORISITI ISTI, SAMO DODAJ SVE ONO ZA SERTIFIKATE....
-// u bazi cuvaj ono za url za bekend napisala sam negdje u komentaru u modelu
-
-//        String callbackUrl;
-//        if (tx.getStatus() == TransactionStatus.SUCCESS) {
-//            callbackUrl = tx.getSuccessUrl();
-//        } else if (tx.getStatus() == TransactionStatus.FAILED ||
-//                tx.getStatus() == TransactionStatus.INSUFFICIENT_FUNDS) {
-//            callbackUrl = tx.getFailedUrl();
-//        } else {
-//            callbackUrl = tx.getErrorUrl();
-//        }
-//
-//// Kreiraj DTO sa podacima ii treba mi paymentMethod
-//        PaymentStatusDTO statusDTO = new PaymentStatusDTO();
-//        statusDTO.setMerchantOrderId(tx.getMerchantOrderId());
-//        statusDTO.setPspTransactionId(tx.getUuid());
-//        statusDTO.setStatus(tx.getStatus().toString());
-//        statusDTO.setTimestamp(LocalDateTime.now());
-//
-//// Pozovi web shop API
-//        restTemplate.postForEntity(callbackUrl, statusDTO, Void.class);
-        // 3 urla koja sam ti poslala u dto su linkovi od stranica web shopa na frontu. Ili ih vrati sebi na fe pa tamo preusmjeri
-        // ili vrati 3xx status sa linkom, ovaj kod iznad provjeri nisam sihurna
-// O
-        System.out.println("Transakcija " + tx.getUuid() + " finalizovana sa statusom: " + tx.getStatus());
-    }*/
     @Transactional
     public String finaliseTransaction(dto.PaymentCallbackDTO callback, String paymentMethod) {
 
@@ -304,5 +246,20 @@ public class PaymentService {
 
             return tx.getFailedUrl();
         }
+    }
+
+    // trazim transakciju po Merchant Order ID-u (jer to Web Shop zna)
+    public PaymentStatusDTO checkTransactionStatus(String merchantId, String merchantOrderId) {
+        PaymentTransaction tx = transactionRepository.findByMerchantIdAndMerchantOrderId(merchantId, merchantOrderId)
+                .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
+        String method = tx.getChosenMethod() == null ? "Unknown" : tx.getChosenMethod();
+        // Vraćamo status u istom formatu kao i callback
+        return new PaymentStatusDTO(
+                tx.getMerchantOrderId(),
+                tx.getUuid(),
+                method, // ili izvuci iz baze ako imaš polje paymentMethod
+                tx.getStatus().toString(),
+                LocalDateTime.now()
+        );
     }
 }

@@ -61,7 +61,7 @@ public class BankService {
 
     // 2. METODA ZA KUPCA: Obrada plaćanja (skidanje novca)
     @Transactional
-    public void processPayment(BankPaymentFormDTO form) {
+    public String processPayment(BankPaymentFormDTO form) {
 
         Transaction tx = transactionRepository.findByPaymentId(form.getPaymentId())
                 .orElseThrow(() -> new RuntimeException("Transakcija ne postoji ili je istekla!"));
@@ -107,6 +107,29 @@ public class BankService {
 
         tx.setStatus(TransactionStatus.SUCCESS);
         transactionRepository.save(tx);
+
+        // SERVER → SERVER CALLBACK KA PSP-U
+        String callbackUrl = PSP_CALLBACK_URL +
+                "?paymentId=" + tx.getPspTransactionId() +
+                "&status=SUCCESS";
+
+        try {
+            System.out.println("📡 Bank → PSP callback: " + callbackUrl);
+
+            webClient.post()
+                    .uri(callbackUrl)
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
+
+            System.out.println("✅ PSP uspešno obavešten");
+
+        } catch (Exception e) {
+            System.err.println("⚠️ PSP callback failed: " + e.getMessage());
+            // Ovde bi u realnom sistemu išao retry mehanizam
+        }
+
+        return callbackUrl; // vraća se controlleru (za UX redirect)
     }
 
     // Pomoćna metoda za Luhn algoritam
