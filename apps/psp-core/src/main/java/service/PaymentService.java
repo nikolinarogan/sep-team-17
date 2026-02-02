@@ -201,8 +201,32 @@ public class PaymentService {
                 LocalDateTime.now()
         );
 
-        System.out.println("Saljem notifikaciju na: " + targetUrl);
-        restTemplate.postForEntity(targetUrl, statusDTO, Void.class);
+//        System.out.println("Saljem notifikaciju na: " + targetUrl);
+//        restTemplate.postForEntity(targetUrl, statusDTO, Void.class);
+// RETRY MEHANIZAM U SLUCAJU DA WEBSHOP NE BUDE DOSTUPAN U TRENUTNKU KAD SALJEMO
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                System.out.println("Webhook attempt " + attempt + "/" + maxRetries + " -> " + targetUrl);
+                restTemplate.postForEntity(targetUrl, statusDTO, Void.class);
+                System.out.println("Webhook uspešno poslat.");
+                return; // uspeh, izlazimo
+            } catch (Exception e) {
+                System.err.println("Webhook attempt " + attempt + "/" + maxRetries + " failed: " + e.getMessage());
+                if (attempt < maxRetries) {
+                    long delayMs = 2000L * attempt; // 2s, 4s
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        System.err.println("Webhook retry prekinut.");
+                        break;
+                    }
+                } else {
+                    System.err.println("Webhook nije uspeo ni posle " + maxRetries + " pokušaja. Web Shop će možda dobiti status preko pollinga.");
+                }
+            }
+        }
     }
 
     /**
