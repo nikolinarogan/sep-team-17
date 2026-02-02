@@ -380,4 +380,8 @@ public class OrderService {
             default: return OrderStatus.PENDING;
         }
     }
+
+//    public Order findByMerchantOrderId(Long id){
+//       return  orderRepository.findByMerchantOrderId(id);
+//    }
 }

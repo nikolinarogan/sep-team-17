@@ -50,7 +50,7 @@ public class Order {
     private Double totalAmount;
 
     @Column(nullable = false)
-    private String currency = "EUR"; // NISAM SIGURNA DA LI TREBA OVAKO!!!
+    private String currency = "EUR";
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

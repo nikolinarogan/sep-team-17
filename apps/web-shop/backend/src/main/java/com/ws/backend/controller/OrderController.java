@@ -5,13 +5,17 @@ import com.ws.backend.dto.OrderRequestDTO;
 import com.ws.backend.dto.PaymentResponseDTO;
 import com.ws.backend.jwt.JwtService;
 import com.ws.backend.model.Order;
+import com.ws.backend.model.PaymentTransaction;
+import com.ws.backend.repository.PaymentTransactionRepository;
 import com.ws.backend.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/orders")
@@ -19,10 +23,12 @@ public class OrderController {
 
     private final OrderService orderService;
     private final JwtService jwtService;
+    private final PaymentTransactionRepository transactionRepository;
 
-    public OrderController(OrderService orderService, JwtService jwtService) {
+    public OrderController(OrderService orderService, JwtService jwtService, PaymentTransactionRepository transactionRepository) {
         this.orderService = orderService;
         this.jwtService = jwtService;
+        this.transactionRepository = transactionRepository;
     }
 
     @PostMapping
@@ -71,4 +77,22 @@ public class OrderController {
         }
     }
 
+    @GetMapping("/status")
+    public ResponseEntity<?> getOrderStatus(@RequestParam String merchantOrderId) {
+        try {
+            PaymentTransaction tx = transactionRepository
+                    .findByMerchantOrderId(merchantOrderId)
+                    .orElseThrow(() -> new RuntimeException("Narudžbina nije pronađena"));
+
+            Order order = tx.getOrder();
+
+            return ResponseEntity.ok(Map.of(
+                    "orderStatus", order.getOrderStatus().toString(),
+                    "merchantOrderId", merchantOrderId
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }
