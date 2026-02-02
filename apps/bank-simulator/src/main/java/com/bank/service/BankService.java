@@ -116,7 +116,7 @@ public class BankService {
         try {
             System.out.println("📡 Bank → PSP callback: " + callbackUrl);
 
-            webClient.post()
+            webClient.get()
                     .uri(callbackUrl)
                     .retrieve()
                     .bodyToMono(Void.class)
