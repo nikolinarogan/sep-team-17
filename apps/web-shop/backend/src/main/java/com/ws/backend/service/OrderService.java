@@ -212,7 +212,7 @@ public class OrderService {
                 .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + statusDTO.getMerchantOrderId()));
 
         // 2. Provera da li je transakcija već završena (Idempotency check)
-        if (tx.getStatus() == OrderStatus.CONFIRMED) {
+        if (tx.getStatus() != OrderStatus.PENDING) {
             return; // Već je obrađeno, ne radimo ništa
         }
 
@@ -304,7 +304,7 @@ public class OrderService {
     }
 
     // Izvršava se svakih 60 sekundi (promeni po potrebi, npr. 300000 za 5 min)
-    @Scheduled(fixedRate = 10000) // Provera svakog minuta
+    @Scheduled(fixedRate = 600000) // Provera svakog minuta
     public void reconcilePendingOrders() {
         System.out.println("--- SCHEDULER: Provera zaglavljenih porudžbina ---");
 
@@ -345,7 +345,7 @@ public class OrderService {
                             // Proveravamo da li je isteklo 30 minuta od kreiranja porudžbine
                             long minutesSinceCreation = ChronoUnit.MINUTES.between(order.getCreatedAt(), LocalDateTime.now());
 
-                            if (minutesSinceCreation > 1) {
+                            if (minutesSinceCreation > 30) {
                                 // ISTEKLO VREME! Otkazujemo porudžbinu da oslobodimo vozilo.
                                 System.out.println("Order " + order.getId() + " je PENDING predugo (" + minutesSinceCreation + " min). Otkazujem.");
 
@@ -370,18 +370,4 @@ public class OrderService {
             }
         }
     }
-
-    // Pomoćna metoda za mapiranje statusa
-    private OrderStatus mapPspStatusToOrderStatus(String pspStatus) {
-        switch (pspStatus) {
-            case "SUCCESS": return OrderStatus.CONFIRMED;
-            case "FAILED": return OrderStatus.CANCELLED;
-            case "ERROR": return OrderStatus.ERROR;
-            default: return OrderStatus.PENDING;
-        }
-    }
-
-//    public Order findByMerchantOrderId(Long id){
-//       return  orderRepository.findByMerchantOrderId(id);
-//    }
 }
