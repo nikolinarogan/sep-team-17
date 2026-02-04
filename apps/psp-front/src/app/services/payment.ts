@@ -30,4 +30,8 @@ export class Payment {
       scannedString: scannedData
     });
   }
+  initiatePaypalPayment(uuid: string) {
+    // Putanja mora da odgovara onoj u Spring Boot PaymentController-u
+    return this.http.post(`${this.apiUrl}/payments/paypal/checkout/${uuid}`, {});
+}
 }
