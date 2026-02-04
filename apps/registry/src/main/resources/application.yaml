@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: registry
+server:
+  port: 8761
+  ssl:
+    enabled: true
+    key-store: classpath:psp-keystore.p12
+    key-store-password: ${KEY_STORE_PASSWORD}
+    key-store-type: PKCS12
+
+eureka:
+  instance:
+    hostname: ${EUREKA_HOST:localhost}
+    secure-port-enabled: true
+    non-secure-port-enabled: false
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: https://${eureka.instance.hostname}:${server.port}/eureka/

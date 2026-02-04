@@ -1,0 +1,32 @@
+server:
+  port: 8000
+  ssl:
+    enabled: true
+    key-store: classpath:psp-keystore.p12
+    key-store-password: ${KEY_STORE_PASSWORD}
+    key-store-type: PKCS12
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      httpclient:
+        ssl:
+          useInsecureTrustManager: true
+
+eureka:
+  instance:
+    hostname: ${EUREKA_HOST:localhost}
+    prefer-ip-address: true
+    secure-port-enabled: true
+    non-secure-port-enabled: false
+  client:
+    service-url:
+      defaultZone: https://${eureka.instance.hostname}:8761/eureka/
+    disable-delta: true
+    eureka-server-u-r-l-context: eureka
