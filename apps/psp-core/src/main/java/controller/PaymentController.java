@@ -154,4 +154,14 @@ public class PaymentController {
                 .location(java.net.URI.create(redirectUrl))
                 .build();
     }
+
+    @PostMapping("/cancel")
+    public ResponseEntity<Void> cancelTransaction(@Valid @RequestBody CancelRequestDTO request) {
+        paymentService.cancelTransactionByMerchant(
+                request.getMerchantId(),
+                request.getMerchantPassword(),
+                request.getMerchantOrderId()
+        );
+        return ResponseEntity.ok().build();
+    }
 }
