@@ -101,6 +101,31 @@ export class Checkout implements OnInit{
           }
         });
     }
+    else if (method.name === 'PAYPAL') {
+        this.isLoading = true;
+        console.log("Inicijalizujem PayPal za UUID:", this.uuid);
+
+        this.paymentService.initiatePaypalPayment(this.uuid).subscribe({
+            next: (response: any) => {
+                console.log("Odgovor od beka za PayPal:", response);
+                
+                // Očekujemo JSON format { "paymentUrl": "https://www.sandbox.paypal.com/..." }
+                if (response && response.paymentUrl) {
+                    console.log("Preusmeravam na PayPal:", response.paymentUrl);
+                    window.location.href = response.paymentUrl;
+                } else {
+                    console.error("Bekend nije vratio paymentUrl!", response);
+                    this.errorMessage = "Greška: PayPal link nije generisan.";
+                    this.isLoading = false;
+                }
+            },
+            error: (err) => {
+                console.error("Greška pri inicijalizaciji PayPal-a:", err);
+                this.errorMessage = "Došlo je do greške pri povezivanju sa PayPal-om.";
+                this.isLoading = false;
+            }
+        });
+    }
   }
   
   onScanSuccess(scannedText: string) {

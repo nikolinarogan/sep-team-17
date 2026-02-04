@@ -5,6 +5,7 @@ import model.PaymentTransaction;
 import repository.PaymentTransactionRepository;
 import service.CardPaymentService;
 import service.PaymentService;
+import service.PaypalService;
 import service.QrPaymentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,15 +24,18 @@ public class PaymentController {
     private final CardPaymentService cardPaymentService;
     private final QrPaymentService qrPaymentService;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final PaypalService paypalService;
 
     public PaymentController(PaymentService paymentService,
                              CardPaymentService cardPaymentService,
                              QrPaymentService qrPaymentService,
-                             PaymentTransactionRepository paymentTransactionRepository) {
+                             PaymentTransactionRepository paymentTransactionRepository,
+                             PaypalService paypalService) {
         this.paymentService = paymentService;
         this.cardPaymentService = cardPaymentService;
         this.qrPaymentService = qrPaymentService;
         this.paymentTransactionRepository = paymentTransactionRepository;
+        this.paypalService = paypalService;
     }
 
     @PostMapping("/init")
@@ -105,5 +109,59 @@ public class PaymentController {
             @PathVariable String merchantId,
             @PathVariable String merchantOrderId) {
         return ResponseEntity.ok(paymentService.checkTransactionStatus(merchantId, merchantOrderId));
+    }
+
+    /**
+     * Endpoint koji Frontend poziva kada korisnik klikne na PayPal dugme.
+     * Odgovara serviceUrl-u: /api/payments/paypal/checkout/{uuid}
+     */
+    @PostMapping("/paypal/checkout/{uuid}")
+    public ResponseEntity<Map<String, String>> initiatePaypal(@PathVariable String uuid) {
+        // 1. Pronađi transakciju u bazi koju je Web Shop inicijalizovao
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + uuid));
+
+        // 2. Pozovi PaypalService da kreira Order na PayPal-u
+        // Ova metoda će vratiti URL na koji korisnik treba da ode da se uloguje
+        String approvalUrl = paypalService.initializePayment(tx);
+
+        // 3. Vrati taj URL frontendu kako bi on mogao da uradi redirect
+        Map<String, String> response = new HashMap<>();
+        response.put("paymentUrl", approvalUrl);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/paypal/capture")
+    public ResponseEntity<Void> capturePaypal(@RequestParam("token") String paypalOrderId, @RequestParam("uuid") String uuid) {
+        // 1. Izvrši capture na PayPal-u (stvarno povlačenje novca)
+        boolean isCaptured = paypalService.captureOrder(paypalOrderId);
+
+        // 2. Pripremi callback za centralnu logiku (PaymentService)
+        dto.PaymentCallbackDTO callback = new dto.PaymentCallbackDTO();
+        callback.setPaymentId(uuid); // Naš interni UUID
+        callback.setStatus(isCaptured ? "SUCCESS" : "FAILED");
+        callback.setExecutionId(paypalOrderId); // PayPal ID
+
+        // 3. Pozovi tvoj centralni servis koji:
+        //    - Ažurira bazu PSP-a
+        //    - Obaveštava Web Shop preko Webhooka (RETRY mehanizam je već tamo!)
+        //    - Vraća URL Web Shopa (success ili failed stranu)
+        String redirectUrl = paymentService.finaliseTransaction(callback, "PAYPAL");
+
+        // 4. Preusmeri kupca nazad na Web Shop
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(java.net.URI.create(redirectUrl))
+                .build();
+    }
+
+    @PostMapping("/cancel")
+    public ResponseEntity<Void> cancelTransaction(@Valid @RequestBody CancelRequestDTO request) {
+        paymentService.cancelTransactionByMerchant(
+                request.getMerchantId(),
+                request.getMerchantPassword(),
+                request.getMerchantOrderId()
+        );
+        return ResponseEntity.ok().build();
     }
 }

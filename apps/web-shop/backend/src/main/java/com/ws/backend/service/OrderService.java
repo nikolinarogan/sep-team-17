@@ -17,7 +17,9 @@ import javax.net.ssl.SSLSession;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class OrderService {
@@ -349,6 +351,9 @@ public class OrderService {
                                 // ISTEKLO VREME! Otkazujemo porudžbinu da oslobodimo vozilo.
                                 System.out.println("Order " + order.getId() + " je PENDING predugo (" + minutesSinceCreation + " min). Otkazujem.");
 
+                                // Obavesti PSP da ažurira svoju transakciju na FAILED
+                                notifyPspOfCancellation(tx.getMerchantOrderId());
+
                                 // Ručno otkazivanje jer nemamo status od PSP-a da prosledimo u processCallback
                                 order.setOrderStatus(OrderStatus.CANCELLED);
                                 orderRepository.save(order);
@@ -368,6 +373,27 @@ public class OrderService {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    /**
+     * Obaveštava PSP da je transakcija otkazana od strane Web Shopa
+     * (slučaj kada korisnik nikad ne izabere metodu plaćanja - timeout 30 min).
+     */
+    private void notifyPspOfCancellation(String merchantOrderId) {
+        try {
+            String cancelUrl = pspApiUrl.replace("/init", "") + "/cancel";
+
+            Map<String, String> requestBody = new HashMap<>();
+            requestBody.put("merchantId", merchantId);
+            requestBody.put("merchantPassword", merchantPassword);
+            requestBody.put("merchantOrderId", merchantOrderId);
+
+            restTemplate.postForEntity(cancelUrl, requestBody, Void.class);
+            System.out.println("PSP obavešten o otkazivanju transakcije: " + merchantOrderId);
+        } catch (Exception e) {
+            System.err.println("Greška pri obaveštavanju PSP-a o otkazivanju: " + e.getMessage());
+            // Ne prekidamo tok - Web Shop je već otkazao, PSP će možda uhvatiti preko svog expire job-a
         }
     }
 }

@@ -2,6 +2,7 @@ package service;
 
 import dto.*;
 import model.*;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -155,6 +156,7 @@ public class PaymentService {
         tx.setExternalTransactionId(callback.getExternalTransactionId());
         tx.setExecutionId(callback.getExecutionId());
         tx.setServiceTimestamp(callback.getServiceTimestamp());
+        tx.setChosenMethod(paymentMethod);
 
         transactionRepository.save(tx);
 
@@ -285,5 +287,47 @@ public class PaymentService {
                 tx.getStatus().toString(),
                 LocalDateTime.now()
         );
+    }
+
+    @Scheduled(fixedRate = 600000) // svakih 10 minuta
+    @Transactional
+    public void expireAbandonedTransactions() {
+        LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
+
+        List<PaymentTransaction> abandoned = transactionRepository
+                .findByStatusAndExecutionIdIsNotNullAndCreatedAtBefore(
+                        TransactionStatus.CREATED,
+                        thirtyMinutesAgo
+                );
+
+        for (PaymentTransaction tx : abandoned) {
+            tx.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(tx);
+            notifyWebShop(tx, tx.getChosenMethod()); // ili tx.getChosenMethod() ako je setovan
+        }
+    }
+
+    /**
+     * Otkazivanje transakcije na zahtev Web Shopa (kada korisnik nikad ne izabere metodu plaćanja).
+     */
+    @Transactional
+    public void cancelTransactionByMerchant(String merchantId, String merchantPassword, String merchantOrderId) {
+        // 1. Validacija prodavca
+        Merchant merchant = merchantRepository.findByMerchantId(merchantId)
+                .orElseThrow(() -> new RuntimeException("Prodavac ne postoji."));
+
+        if (!passwordEncoder.matches(merchantPassword, merchant.getMerchantPassword())) {
+            throw new RuntimeException("Pogrešna lozinka za prodavca.");
+        }
+
+        // 2. Pronađi transakciju
+        PaymentTransaction tx = transactionRepository.findByMerchantIdAndMerchantOrderId(merchantId, merchantOrderId)
+                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + merchantOrderId));
+
+        // 3. Ažuriraj samo ako je još uvek CREATED (idempotentnost)
+        if (tx.getStatus() == TransactionStatus.CREATED) {
+            tx.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(tx);
+        }
     }
 }
