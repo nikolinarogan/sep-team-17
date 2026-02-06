@@ -146,7 +146,7 @@ selectMethod(method: PaymentMethod) {
     },
     error: (err) => {
       console.error('Greška pri inicijalizaciji plaćanja:', err);
-      this.errorMessage = err?.error?.message || 'Došlo je do greške pri povezivanju.';
+      this.errorMessage = err?.error?.error || err?.error?.message || 'Došlo je do greške pri povezivanju.'; 
       this.isLoading = false;
     }
   });
