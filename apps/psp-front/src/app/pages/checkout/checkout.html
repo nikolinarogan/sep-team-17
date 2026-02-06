@@ -142,6 +142,16 @@
         </div>
         <p class="mt-2">Učitavanje detalja plaćanja...</p>
       </div>
+      <!-- U postojećoj loading sekciji, DODATI dugme ispod spinnera -->
+<div *ngIf="isLoading" class="text-center p-5">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+  <p class="mt-2">Učitavanje detalja plaćanja...</p>
+  <button class="btn btn-outline-secondary mt-3" (click)="cancelInitiate()">
+    Otkaži i vrati se na izbor metode
+  </button>
+</div>
 
       <!-- Error message -->
       <div *ngIf="errorMessage" class="alert alert-danger text-center">

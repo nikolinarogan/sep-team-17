@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -31,12 +32,27 @@ public class BankService {
     }
 
     // 1. METODA ZA PSP: Kreiranje URL-a za plaćanje
+    // Idempotentno: ako transakcija sa istim psp_transaction_id već postoji (npr. korisnik je prvo probao QR pa CARD),
+    // vraćamo postojeći URL umesto kreiranja duplikata.
     public PspPaymentResponseDTO createPaymentUrl(PspPaymentRequestDTO request) {
         Merchant merchant = merchantRepository.findByMerchantId(request.getMerchantId())
                 .orElseThrow(() -> new RuntimeException("Prodavac ne postoji u banci!"));
 
         if (!merchant.getMerchantPassword().equals(request.getMerchantPassword())) {
             throw new RuntimeException("Pogrešna lozinka prodavca!");
+        }
+
+        // Provera: da li već postoji transakcija za ovaj PSP UUID (npr. kreirana pri QR inicijalizaciji)
+        Optional<Transaction> existing = transactionRepository.findByPspTransactionId(request.getPspTransactionId());
+        if (existing.isPresent()) {
+            Transaction tx = existing.get();
+            if (tx.getStatus() == TransactionStatus.CREATED) {
+                // Transakcija još čeka plaćanje - vraćamo postojeći URL (korisnik može platiti karticom ili QR-om)
+                String paymentUrl = "https://localhost:8082/pay.html?paymentId=" + tx.getPaymentId();
+                return new PspPaymentResponseDTO(paymentUrl, tx.getPaymentId(), tx.getStan() != null ? tx.getStan() : request.getStan());
+            }
+            // Ako je transakcija već SUCCESS/FAILED, ne dozvoljavamo novi pokušaj - bacamo grešku
+            throw new RuntimeException("Transakcija je već obrađena (status: " + tx.getStatus() + ").");
         }
 
         Transaction tx = new Transaction();
