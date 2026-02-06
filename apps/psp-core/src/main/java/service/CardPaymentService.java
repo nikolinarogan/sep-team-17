@@ -1,5 +1,6 @@
 package service;
 
+import dto.PaymentInitResult;
 import model.Merchant;
 import model.PaymentTransaction;
 import model.TransactionStatus;
@@ -14,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class CardPaymentService {
+public class CardPaymentService implements  PaymentProvider{
 
     private static final String BANK_URL = "https://localhost:8082/api/bank/card";
 
@@ -27,7 +28,16 @@ public class CardPaymentService {
         this.transactionRepository = paymentTransactionRepository;
         this.merchantRepository = merchantRepository;
     }
+    @Override
+    public String getProviderName() {
+        return "CARD";
+    }
 
+    @Override
+    public PaymentInitResult initiate(PaymentTransaction transaction) {
+        String url = initializePayment(transaction);
+        return PaymentInitResult.builder().redirectUrl(url).build();
+    }
     public String initializePayment(PaymentTransaction transaction) {
         String stan = String.valueOf((int) (Math.random() * 900000) + 100000);
 

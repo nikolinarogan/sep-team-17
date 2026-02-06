@@ -1,5 +1,6 @@
 package service;
 
+import dto.PaymentInitResult;
 import model.Merchant;
 import model.PaymentTransaction;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class QrPaymentService {
+public class QrPaymentService implements  PaymentProvider{
     private static final String BANK_QR_URL = "https://localhost:8082/api/bank/qr-initialize";
     private final RestTemplate restTemplate;
     private final MerchantRepository merchantRepository;
@@ -19,6 +20,16 @@ public class QrPaymentService {
     public QrPaymentService(RestTemplate restTemplate, MerchantRepository merchantRepository) {
         this.restTemplate = restTemplate;
         this.merchantRepository = merchantRepository;
+    }
+    @Override
+    public String getProviderName() {
+        return "QR";
+    }
+
+    @Override
+    public PaymentInitResult initiate(PaymentTransaction transaction) {
+        String qrData = getIpsQrData(transaction);
+        return PaymentInitResult.builder().qrData(qrData).build();
     }
 
     public String getIpsQrData(PaymentTransaction transaction) {

@@ -1,5 +1,6 @@
 package service;
 
+import dto.PaymentInitResult;
 import model.PaymentTransaction;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -10,7 +11,7 @@ import repository.PaymentTransactionRepository;
 import java.util.*;
 
 @Service
-public class PaypalService {
+public class PaypalService implements PaymentProvider{
     @Value("${PAYPAL_CLIENT_ID}")
     private String clientId;
 
@@ -27,7 +28,16 @@ public class PaypalService {
         this.restTemplate = restTemplate;
         this.transactionRepository = transactionRepository;
     }
+    @Override
+    public String getProviderName() {
+        return "PAYPAL";
+    }
 
+    @Override
+    public PaymentInitResult initiate(PaymentTransaction tx) {
+        String approvalUrl = initializePayment(tx);
+        return PaymentInitResult.builder().redirectUrl(approvalUrl).build();
+    }
     // 1. Dobavljanje Access Tokena (OAuth2)
     private String getAccessToken() {
         String auth = clientId + ":" + clientSecret;
