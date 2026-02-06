@@ -1,5 +1,6 @@
 package service;
 
+import dto.PaymentInitResult;
 import model.Merchant;
 import model.PaymentTransaction;
 import model.TransactionStatus;
@@ -14,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class CardPaymentService {
+public class CardPaymentService implements  PaymentProvider{
 
     private static final String BANK_URL = "https://localhost:8082/api/bank/card";
 
@@ -27,7 +28,16 @@ public class CardPaymentService {
         this.transactionRepository = paymentTransactionRepository;
         this.merchantRepository = merchantRepository;
     }
+    @Override
+    public String getProviderName() {
+        return "CARD";
+    }
 
+    @Override
+    public PaymentInitResult initiate(PaymentTransaction transaction) {
+        String url = initializePayment(transaction);
+        return PaymentInitResult.builder().redirectUrl(url).build();
+    }
     public String initializePayment(PaymentTransaction transaction) {
         String stan = String.valueOf((int) (Math.random() * 900000) + 100000);
 
@@ -50,7 +60,11 @@ public class CardPaymentService {
 
         // Šaljemo STAN banci
         request.put("stan", stan);
+        // RETRY: 3 pokušaja sa eksponencijalnim backoff-om (1s, 2s, 4s)
+        int maxAttempts = 3;
+        Exception lastException = null;
 
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             ResponseEntity<Map> response = this.restTemplate.postForEntity(BANK_URL, request, Map.class);
 
@@ -71,9 +85,20 @@ public class CardPaymentService {
             throw new RuntimeException("Banka nije vratila paymentUrl!");
 
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Greška: " + e.getMessage());
+            lastException = e;
+            if (attempt < maxAttempts) {
+                try {
+                    long delayMs = 1000L * (1 << (attempt - 1));  // 1s, 2s, 4s
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry prekinut.", ie);
+                }
+            }
         }
+        }
+        throw new RuntimeException("Greška nakon " + maxAttempts + " pokušaja: " +
+                (lastException != null ? lastException.getMessage() : "Nepoznata greška"));
     }
 
     public String handleCallback(String bankPaymentId, String status) {

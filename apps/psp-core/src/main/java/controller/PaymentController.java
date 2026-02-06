@@ -1,12 +1,10 @@
 package controller;
 
 import dto.*;
+import exception.UnknownPaymentmethodException;
 import model.PaymentTransaction;
 import repository.PaymentTransactionRepository;
-import service.CardPaymentService;
-import service.PaymentService;
-import service.PaypalService;
-import service.QrPaymentService;
+import service.*;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,21 +19,18 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final CardPaymentService cardPaymentService;
-    private final QrPaymentService qrPaymentService;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaypalService paypalService;
+    private final PaymentRegistry paymentRegistry;
 
     public PaymentController(PaymentService paymentService,
-                             CardPaymentService cardPaymentService,
-                             QrPaymentService qrPaymentService,
                              PaymentTransactionRepository paymentTransactionRepository,
-                             PaypalService paypalService) {
+                             PaypalService paypalService,
+                             PaymentRegistry paymentRegistry) {
         this.paymentService = paymentService;
-        this.cardPaymentService = cardPaymentService;
-        this.qrPaymentService = qrPaymentService;
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.paypalService = paypalService;
+        this.paymentRegistry = paymentRegistry;
     }
 
     @PostMapping("/init")
@@ -66,30 +61,6 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.getCheckoutData(uuid));
     }
 
-    @PostMapping("/checkout/{uuid}/card")
-    public ResponseEntity<?> initCardPayment(@PathVariable String uuid) {
-        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("Nema transakcije"));
-
-        String bankUrl = cardPaymentService.initializePayment(tx);
-
-        Map<String, String> response = new HashMap<>();
-        response.put("paymentUrl", bankUrl);
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/checkout/{uuid}/qr")
-    public ResponseEntity<?> initQrPayment(@PathVariable String uuid) {
-        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("Nema transakcije"));
-
-        String qrData = qrPaymentService.getIpsQrData(tx);
-
-        Map<String, String> response = new HashMap<>();
-        response.put("qrData", qrData);
-        return ResponseEntity.ok(response);
-    }
-
     @PostMapping("/finalize")
     public ResponseEntity<String> finalizeCard(@RequestBody PaymentCallbackDTO callback) {
         System.out.println("Stigao odgovor od Banke (Server-to-Server)!");
@@ -109,27 +80,6 @@ public class PaymentController {
             @PathVariable String merchantId,
             @PathVariable String merchantOrderId) {
         return ResponseEntity.ok(paymentService.checkTransactionStatus(merchantId, merchantOrderId));
-    }
-
-    /**
-     * Endpoint koji Frontend poziva kada korisnik klikne na PayPal dugme.
-     * Odgovara serviceUrl-u: /api/payments/paypal/checkout/{uuid}
-     */
-    @PostMapping("/paypal/checkout/{uuid}")
-    public ResponseEntity<Map<String, String>> initiatePaypal(@PathVariable String uuid) {
-        // 1. Pronađi transakciju u bazi koju je Web Shop inicijalizovao
-        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + uuid));
-
-        // 2. Pozovi PaypalService da kreira Order na PayPal-u
-        // Ova metoda će vratiti URL na koji korisnik treba da ode da se uloguje
-        String approvalUrl = paypalService.initializePayment(tx);
-
-        // 3. Vrati taj URL frontendu kako bi on mogao da uradi redirect
-        Map<String, String> response = new HashMap<>();
-        response.put("paymentUrl", approvalUrl);
-
-        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/paypal/capture")
@@ -163,5 +113,42 @@ public class PaymentController {
                 request.getMerchantOrderId()
         );
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Generički endpoint za inicijalizaciju plaćanja bilo kojom metodom.
+     * Nova metoda = novi PaymentProvider bean, bez izmene ovog kontrolera.
+     */
+    @PostMapping("/checkout/{uuid}/init/{methodName}")
+    public ResponseEntity<Map<String, Object>> initiatePayment(
+            @PathVariable String uuid,
+            @PathVariable String methodName) {
+
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + uuid));
+
+        try {
+            PaymentProvider provider = paymentRegistry.get(methodName);
+            PaymentInitResult result = provider.initiate(tx);
+
+            Map<String, Object> response = new HashMap<>();
+            if (result.getRedirectUrl() != null) {
+                response.put("paymentUrl", result.getRedirectUrl());
+            }
+            if (result.getQrData() != null) {
+                response.put("qrData", result.getQrData());
+            }
+            return ResponseEntity.ok(response);
+        } catch (UnknownPaymentmethodException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            // Pad providera – PSP ostaje upaljen
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of(
+                            "error", "Metoda plaćanja trenutno nije dostupna.",
+                            "retryable", true
+                    ));
+        }
     }
 }

@@ -1,5 +1,6 @@
 package service;
 
+import dto.PaymentInitResult;
 import model.PaymentTransaction;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -10,7 +11,7 @@ import repository.PaymentTransactionRepository;
 import java.util.*;
 
 @Service
-public class PaypalService {
+public class PaypalService implements PaymentProvider{
     @Value("${PAYPAL_CLIENT_ID}")
     private String clientId;
 
@@ -27,7 +28,16 @@ public class PaypalService {
         this.restTemplate = restTemplate;
         this.transactionRepository = transactionRepository;
     }
+    @Override
+    public String getProviderName() {
+        return "PAYPAL";
+    }
 
+    @Override
+    public PaymentInitResult initiate(PaymentTransaction tx) {
+        String approvalUrl = initializePayment(tx);
+        return PaymentInitResult.builder().redirectUrl(approvalUrl).build();
+    }
     // 1. Dobavljanje Access Tokena (OAuth2)
     private String getAccessToken() {
         String auth = clientId + ":" + clientSecret;
@@ -38,9 +48,30 @@ public class PaypalService {
         headers.setBasicAuth(encodedAuth);
 
         HttpEntity<String> request = new HttpEntity<>("grant_type=client_credentials", headers);
-        ResponseEntity<Map> response = restTemplate.postForEntity(PAYPAL_API + "/v1/oauth2/token", request, Map.class);
+        int maxAttempts = 3;
+        Exception lastException = null;
 
-        return response.getBody().get("access_token").toString();
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                ResponseEntity<Map> response = restTemplate.postForEntity(
+                        PAYPAL_API + "/v1/oauth2/token", request, Map.class);
+                return response.getBody().get("access_token").toString();
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < maxAttempts) {
+                    try {
+                        long delayMs = 1000L * (1 << (attempt - 1));
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Retry prekinut.", ie);
+                    }
+                } else {
+                    throw new RuntimeException("PayPal OAuth greška nakon " + maxAttempts + " pokušaja: " + e.getMessage());
+                }
+            }
+        }
+        throw new RuntimeException("Nepoznata greška.");
     }
 
     // 2. Inicijalizacija plaćanja (Kreira Order)
@@ -68,22 +99,41 @@ public class PaypalService {
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(orderRequest, headers);
-        ResponseEntity<Map> response = restTemplate.postForEntity(PAYPAL_API + "/v2/checkout/orders", entity, Map.class);
+        int maxAttempts = 3;
+        Exception lastException = null;
 
-        Map<String, Object> body = response.getBody();
-        String paypalOrderId = body.get("id").toString();
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(orderRequest, headers);
+                ResponseEntity<Map> response = restTemplate.postForEntity(
+                        PAYPAL_API + "/v2/checkout/orders", entity, Map.class);
 
-        // Čuvamo PayPal ID u bazu (executionId)
-        tx.setExecutionId(paypalOrderId);
-        transactionRepository.save(tx);
+                Map<String, Object> body = response.getBody();
+                String paypalOrderId = body.get("id").toString();
+                tx.setExecutionId(paypalOrderId);
+                transactionRepository.save(tx);
 
-        // Vraćamo 'approve' link korisniku
-        List<Map<String, String>> links = (List<Map<String, String>>) body.get("links");
-        return links.stream()
-                .filter(l -> "approve".equals(l.get("rel")))
-                .findFirst()
-                .get().get("href");
+                List<Map<String, String>> links = (List<Map<String, String>>) body.get("links");
+                return links.stream()
+                        .filter(l -> "approve".equals(l.get("rel")))
+                        .findFirst()
+                        .get().get("href");
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < maxAttempts) {
+                    try {
+                        long delayMs = 1000L * (1 << (attempt - 1));
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Retry prekinut.", ie);
+                    }
+                } else {
+                    throw new RuntimeException("PayPal Create Order greška nakon " + maxAttempts + " pokušaja: " + e.getMessage());
+                }
+            }
+        }
+        throw new RuntimeException("Nepoznata greška.");
     }
 
     // 3. Finalizacija (Capture) - Kada se korisnik vrati
