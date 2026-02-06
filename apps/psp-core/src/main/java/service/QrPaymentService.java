@@ -43,6 +43,10 @@ public class QrPaymentService implements  PaymentProvider{
         request.put("currency", transaction.getCurrency());
         request.put("pspTransactionId", transaction.getUuid());
 
+        int maxAttempts = 3;
+        Exception lastException = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             ResponseEntity<Map> response = this.restTemplate.postForEntity(BANK_QR_URL, request, Map.class);
             Map<String, Object> body = response.getBody();
@@ -59,8 +63,20 @@ public class QrPaymentService implements  PaymentProvider{
             }
             throw new RuntimeException("Banka nije vratila qrData!");
         } catch (Exception e) {
-            throw new RuntimeException("Greška u komunikaciji sa Bankom (QR): " + e.getMessage());
+            lastException = e;
+            if (attempt < maxAttempts) {
+                try {
+                    long delayMs = 1000L * (1 << (attempt - 1));
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry prekinut.", ie);
+                }
+            }
         }
+        }
+        throw new RuntimeException("Greška u komunikaciji sa Bankom (QR) nakon " + maxAttempts + " pokušaja: " +
+                (lastException != null ? lastException.getMessage() : "Nepoznata greška"));
     }
 
     // Metoda koja implementira pravila iz PDF-a [cite: 5, 11, 22, 65]

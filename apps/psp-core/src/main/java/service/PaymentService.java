@@ -294,16 +294,19 @@ public class PaymentService {
     public void expireAbandonedTransactions() {
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 
+        // Obuhvata i transakcije gde korisnik nikad nije izabrao metodu (executionId == null) i
+        // transakcije gde je izabrao (QR/CARD/PayPal) ali nije završio plaćanje
         List<PaymentTransaction> abandoned = transactionRepository
-                .findByStatusAndExecutionIdIsNotNullAndCreatedAtBefore(
-                        TransactionStatus.CREATED,
-                        thirtyMinutesAgo
-                );
+                .findByStatusAndCreatedAtBefore(TransactionStatus.CREATED, thirtyMinutesAgo);
 
         for (PaymentTransaction tx : abandoned) {
             tx.setStatus(TransactionStatus.FAILED);
             transactionRepository.save(tx);
-            notifyWebShop(tx, tx.getChosenMethod()); // ili tx.getChosenMethod() ako je setovan
+            try {
+                notifyWebShop(tx, tx.getChosenMethod() != null ? tx.getChosenMethod() : "UNKNOWN");
+            } catch (Exception e) {
+                System.err.println("Greška pri obaveštavanju Web Shopa za tx " + tx.getUuid() + ": " + e.getMessage());
+            }
         }
     }
 

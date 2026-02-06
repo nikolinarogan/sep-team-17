@@ -18,4 +18,13 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             TransactionStatus status,
             LocalDateTime before
     );
+
+    /**
+     * Pronalazi sve transakcije sa statusom CREATED starije od određenog vremena.
+     * Obuhvata i slučaj kada korisnik nikad nije izabrao metodu plaćanja (executionId == null).
+     */
+    List<PaymentTransaction> findByStatusAndCreatedAtBefore(
+            TransactionStatus status,
+            LocalDateTime before
+    );
 }

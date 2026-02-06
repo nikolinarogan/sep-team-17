@@ -60,7 +60,11 @@ public class CardPaymentService implements  PaymentProvider{
 
         // Šaljemo STAN banci
         request.put("stan", stan);
+        // RETRY: 3 pokušaja sa eksponencijalnim backoff-om (1s, 2s, 4s)
+        int maxAttempts = 3;
+        Exception lastException = null;
 
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             ResponseEntity<Map> response = this.restTemplate.postForEntity(BANK_URL, request, Map.class);
 
@@ -81,9 +85,20 @@ public class CardPaymentService implements  PaymentProvider{
             throw new RuntimeException("Banka nije vratila paymentUrl!");
 
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Greška: " + e.getMessage());
+            lastException = e;
+            if (attempt < maxAttempts) {
+                try {
+                    long delayMs = 1000L * (1 << (attempt - 1));  // 1s, 2s, 4s
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry prekinut.", ie);
+                }
+            }
         }
+        }
+        throw new RuntimeException("Greška nakon " + maxAttempts + " pokušaja: " +
+                (lastException != null ? lastException.getMessage() : "Nepoznata greška"));
     }
 
     public String handleCallback(String bankPaymentId, String status) {

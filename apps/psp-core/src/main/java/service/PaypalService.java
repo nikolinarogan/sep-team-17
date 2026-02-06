@@ -48,9 +48,30 @@ public class PaypalService implements PaymentProvider{
         headers.setBasicAuth(encodedAuth);
 
         HttpEntity<String> request = new HttpEntity<>("grant_type=client_credentials", headers);
-        ResponseEntity<Map> response = restTemplate.postForEntity(PAYPAL_API + "/v1/oauth2/token", request, Map.class);
+        int maxAttempts = 3;
+        Exception lastException = null;
 
-        return response.getBody().get("access_token").toString();
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                ResponseEntity<Map> response = restTemplate.postForEntity(
+                        PAYPAL_API + "/v1/oauth2/token", request, Map.class);
+                return response.getBody().get("access_token").toString();
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < maxAttempts) {
+                    try {
+                        long delayMs = 1000L * (1 << (attempt - 1));
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Retry prekinut.", ie);
+                    }
+                } else {
+                    throw new RuntimeException("PayPal OAuth greška nakon " + maxAttempts + " pokušaja: " + e.getMessage());
+                }
+            }
+        }
+        throw new RuntimeException("Nepoznata greška.");
     }
 
     // 2. Inicijalizacija plaćanja (Kreira Order)
@@ -78,22 +99,41 @@ public class PaypalService implements PaymentProvider{
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(orderRequest, headers);
-        ResponseEntity<Map> response = restTemplate.postForEntity(PAYPAL_API + "/v2/checkout/orders", entity, Map.class);
+        int maxAttempts = 3;
+        Exception lastException = null;
 
-        Map<String, Object> body = response.getBody();
-        String paypalOrderId = body.get("id").toString();
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(orderRequest, headers);
+                ResponseEntity<Map> response = restTemplate.postForEntity(
+                        PAYPAL_API + "/v2/checkout/orders", entity, Map.class);
 
-        // Čuvamo PayPal ID u bazu (executionId)
-        tx.setExecutionId(paypalOrderId);
-        transactionRepository.save(tx);
+                Map<String, Object> body = response.getBody();
+                String paypalOrderId = body.get("id").toString();
+                tx.setExecutionId(paypalOrderId);
+                transactionRepository.save(tx);
 
-        // Vraćamo 'approve' link korisniku
-        List<Map<String, String>> links = (List<Map<String, String>>) body.get("links");
-        return links.stream()
-                .filter(l -> "approve".equals(l.get("rel")))
-                .findFirst()
-                .get().get("href");
+                List<Map<String, String>> links = (List<Map<String, String>>) body.get("links");
+                return links.stream()
+                        .filter(l -> "approve".equals(l.get("rel")))
+                        .findFirst()
+                        .get().get("href");
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < maxAttempts) {
+                    try {
+                        long delayMs = 1000L * (1 << (attempt - 1));
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Retry prekinut.", ie);
+                    }
+                } else {
+                    throw new RuntimeException("PayPal Create Order greška nakon " + maxAttempts + " pokušaja: " + e.getMessage());
+                }
+            }
+        }
+        throw new RuntimeException("Nepoznata greška.");
     }
 
     // 3. Finalizacija (Capture) - Kada se korisnik vrati

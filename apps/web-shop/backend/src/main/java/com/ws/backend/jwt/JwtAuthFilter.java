@@ -27,6 +27,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        // Webhook od PSP-a ne zahteva JWT - preskačemo filter
+        String path = request.getRequestURI();
+        return path != null && path.startsWith("/api/payment/callback");
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
