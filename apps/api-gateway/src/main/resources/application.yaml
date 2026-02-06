@@ -11,6 +11,17 @@ spring:
     name: api-gateway
   cloud:
     gateway:
+      server:
+        mvc:
+          handler:
+            http:
+              ssl:
+                use-insecure-trust-manager: true
+          routes:
+            - id: psp-route
+              uri: https://localhost:8443
+              predicates:
+                - Path=/api/payments/**
       discovery:
         locator:
           enabled: true
@@ -30,3 +41,9 @@ eureka:
       defaultZone: https://${eureka.instance.hostname}:8761/eureka/
     disable-delta: true
     eureka-server-u-r-l-context: eureka
+
+logging:
+  level:
+    org.springframework.cloud.gateway: TRACE
+    org.springframework.web.reactive: DEBUG
+    org.springframework.web: DEBUG
