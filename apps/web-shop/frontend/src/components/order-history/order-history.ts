@@ -113,5 +113,10 @@ export class OrderHistoryComponent implements OnInit {
     }
     return '/assets/default-service.png'; // Fallback slika
   }
+
+  continuePayment(pspPaymentId: string) {
+  
+  window.location.href = `https://localhost:4201/checkout/${pspPaymentId}`;
+}
 }
 

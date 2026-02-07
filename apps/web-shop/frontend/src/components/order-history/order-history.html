@@ -98,6 +98,12 @@
             <span class="label">Completed:</span>
             <span class="value">{{ formatDate(order.completedAt) }}</span>
           </div>
+
+          <div class="order-actions" *ngIf="order.orderStatus === 'PENDING' && order.pspPaymentId">
+             <button class="btn-complete-payment" (click)="continuePayment(order.pspPaymentId)">
+              Complete Payment
+             </button>
+          </div>
         </div>
       </div>
     </div>
