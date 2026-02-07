@@ -8,6 +8,7 @@ import com.ws.backend.model.Order;
 import com.ws.backend.model.PaymentTransaction;
 import com.ws.backend.repository.PaymentTransactionRepository;
 import com.ws.backend.service.OrderService;
+import com.ws.backend.tools.AuditLogger;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,11 +25,16 @@ public class OrderController {
     private final OrderService orderService;
     private final JwtService jwtService;
     private final PaymentTransactionRepository transactionRepository;
+    private final AuditLogger auditLogger;
 
-    public OrderController(OrderService orderService, JwtService jwtService, PaymentTransactionRepository transactionRepository) {
+    public OrderController(OrderService orderService,
+                           JwtService jwtService,
+                           PaymentTransactionRepository transactionRepository,
+                           AuditLogger auditLogger) {
         this.orderService = orderService;
         this.jwtService = jwtService;
         this.transactionRepository = transactionRepository;
+        this.auditLogger = auditLogger;
     }
 
     @PostMapping
@@ -39,6 +45,7 @@ public class OrderController {
         try {
             String token = JwtService.extractTokenFromRequest(httpRequest);
             if (token == null || !jwtService.validateToken(token)) {
+                auditLogger.logSecurityAlert("UNAUTHORIZED_ORDER_ATTEMPT", "Missing or invalid token");
                 return ResponseEntity.badRequest().body("Invalid or missing authentication token");
             }
 
@@ -47,10 +54,16 @@ public class OrderController {
                 return ResponseEntity.badRequest().body("User ID not found in token");
             }
 
+            // Logujemo akciju korisnika
+            auditLogger.logEvent("ORDER_POST_REQUEST", "START", "User: " + userId + " | VehicleID: " + request.getVehicleId());
+
             PaymentResponseDTO responseDTO = orderService.createOrder(request, userId);
+
+            auditLogger.logEvent("ORDER_POST_SUCCESS", "SUCCESS", "User: " + userId);
             return ResponseEntity.ok(responseDTO);
 
         } catch (IllegalArgumentException e) {
+            auditLogger.logEvent("ORDER_POST_VALIDATION_FAIL", "FAILED", "Error: " + e.getMessage());
             return ResponseEntity.badRequest().body("Failed to create order: " + e.getMessage());
         }
     }
@@ -69,6 +82,9 @@ public class OrderController {
                 return ResponseEntity.badRequest().body("User ID not found in token");
             }
 
+            // Logujemo pristup istoriji porudžbina
+            auditLogger.logEvent("VIEW_USER_HISTORY", "SUCCESS", "User: " + userId);
+
             List<OrderHistoryDTO> orders = orderService.getUserOrders(userId);
             return ResponseEntity.ok(orders);
 
@@ -80,6 +96,9 @@ public class OrderController {
     @GetMapping("/status")
     public ResponseEntity<?> getOrderStatus(@RequestParam String merchantOrderId) {
         try {
+            // Logujemo proveru statusa (polling sa frontenda)
+            auditLogger.logEvent("ORDER_STATUS_CHECK", "SUCCESS", "MerchantOrderID: " + merchantOrderId);
+
             PaymentTransaction tx = transactionRepository
                     .findByMerchantOrderId(merchantOrderId)
                     .orElseThrow(() -> new RuntimeException("Narudžbina nije pronađena"));
@@ -91,6 +110,7 @@ public class OrderController {
                     "merchantOrderId", merchantOrderId
             ));
         } catch (RuntimeException e) {
+            auditLogger.logSecurityAlert("STATUS_CHECK_NOT_FOUND", "ID: " + merchantOrderId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", e.getMessage()));
         }

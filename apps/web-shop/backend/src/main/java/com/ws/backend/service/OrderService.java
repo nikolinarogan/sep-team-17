@@ -3,6 +3,7 @@ package com.ws.backend.service;
 import com.ws.backend.dto.*;
 import com.ws.backend.model.*;
 import com.ws.backend.repository.*;
+import com.ws.backend.tools.AuditLogger;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,8 +45,12 @@ public class OrderService {
 
     @Autowired
     private PaymentTransactionRepository transactionRepository;
+
     @Autowired
     private RestTemplate restTemplate;
+
+    @Autowired
+    private AuditLogger auditLogger;
 
     @Value("${webshop.merchant.id}")
     private String merchantId;
@@ -66,8 +71,11 @@ public class OrderService {
             }
         });
     }
+
     @Transactional
     public PaymentResponseDTO createOrder(OrderRequestDTO request, Long userId) {
+        // Audit log start
+        auditLogger.logEvent("ORDER_CREATION_START", "PENDING", "User: " + userId);
 
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
@@ -96,7 +104,6 @@ public class OrderService {
                 throw new IllegalStateException("Vehicle is not available");
             }
 
-            // Proveri da li postoji konfliktna porudžbina (samo CONFIRMED porudžbine)
             boolean isConflict = orderRepository.existsConflictingVehicleOrder(
                     OrderType.VEHICLE,
                     vehicle.getId(),
@@ -104,6 +111,7 @@ public class OrderService {
                     request.getStartDate(),
                     request.getEndDate());
             if (isConflict) {
+                auditLogger.logEvent("ORDER_REJECTED_CONFLICT", "FAILED", "Vehicle: " + vehicle.getId());
                 throw new IllegalStateException("Vehicle is already booked for this period");
             }
 
@@ -111,9 +119,7 @@ public class OrderService {
             order.setVehicle(vehicle);
             order.setStartDate(request.getStartDate());
             order.setEndDate(request.getEndDate());
-
             order.setPricePerDay(vehicle.getPricePerDay());
-
             long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
             order.setTotalAmount(vehicle.getPricePerDay() * days);
 
@@ -127,9 +133,7 @@ public class OrderService {
 
             order.setType(OrderType.INSURANCE);
             order.setInsurance(insurance);
-
             order.setPrice(insurance.getPrice());
-
             order.setTotalAmount(insurance.getPrice());
 
         } else if (request.getEquipmentId() != null) {
@@ -154,12 +158,11 @@ public class OrderService {
             order.setEquipment(equipment);
             order.setStartDate(request.getStartDate());
             order.setEndDate(request.getEndDate());
-
             order.setPricePerDay(equipment.getPricePerDay());
-
             long days = ChronoUnit.DAYS.between(request.getStartDate(), request.getEndDate());
             order.setTotalAmount(equipment.getPricePerDay() * days);
         }
+
         order = orderRepository.save(order);
 
         PaymentTransaction tx = new PaymentTransaction();
@@ -168,8 +171,6 @@ public class OrderService {
         tx.setStatus(OrderStatus.PENDING);
         tx.setCreatedAt(LocalDateTime.now());
         transactionRepository.save(tx);
-
-
 
         PspRequestDTO pspRequest = new PspRequestDTO();
         pspRequest.setMerchantId(merchantId);
@@ -183,86 +184,63 @@ public class OrderService {
         pspRequest.setFailedUrl(apiBase + "/payment-failed?orderId=" + tx.getMerchantOrderId());
         pspRequest.setErrorUrl(apiBase + "/payment-error?orderId=" + tx.getMerchantOrderId());
 
-        System.out.println("==============================================");
-        System.out.println("DEBUG: SALJEM ZAHTEV PSP-u");
-        System.out.println("Success URL: " + pspRequest.getSuccessUrl());
-        System.out.println("Error URL:   " + pspRequest.getErrorUrl());
-        System.out.println("==============================================");
         try {
-            /*ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
-                    pspApiUrl, pspRequest, PaymentResponseDTO.class);
+            auditLogger.logEvent("PSP_INIT_COMMUNICATION", "START", "OrderID: " + tx.getMerchantOrderId());
 
-            // 5. SAČUVAJ psp ID TRANSAKCIJE (pspPaymentId)
-            PaymentResponseDTO pspData = response.getBody();
-            if (pspData != null) {
-                tx.setPspPaymentId(pspData.getPaymentId());
-                transactionRepository.save(tx);
-            }
-
-            return pspData; // Vraćaš URL i ID tvom kontroleru*/
-            // 1. EKSPLICITNO postavi Content-Type header na JSON
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-
-            // 2. Umotaj pspRequest i headere u HttpEntity
             HttpEntity<PspRequestDTO> entity = new HttpEntity<>(pspRequest, headers);
 
-            // 3. Koristi entity u pozivu umesto čistog objekta
             ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
                     pspApiUrl, entity, PaymentResponseDTO.class);
 
-            // 4. SAČUVAJ psp ID TRANSAKCIJE (pspPaymentId)
             PaymentResponseDTO pspData = response.getBody();
             if (pspData != null) {
                 tx.setPspPaymentId(pspData.getPaymentId());
                 transactionRepository.save(tx);
+                auditLogger.logEvent("PSP_INIT_SUCCESS", "SUCCESS", "PSP_ID: " + pspData.getPaymentId());
             }
 
             return pspData;
 
         } catch (Exception e) {
-            // Ako PSP ne odgovori, poništavamo narudžbinu (ili stavljamo u ERROR)
             order.setOrderStatus(OrderStatus.ERROR);
             orderRepository.save(order);
+            auditLogger.logSecurityAlert("PSP_COMMUNICATION_FAIL", "Order: " + order.getId() + " | Error: " + e.getMessage());
             throw new RuntimeException("PSP is not reachable: " + e.getMessage());
         }
     }
 
     @Transactional
     public void processCallback(PaymentStatusDTO statusDTO, OrderStatus targetStatus) {
-        // 1. Pronalaženje transakcije
+        auditLogger.logEvent("PSP_CALLBACK_RECEIVED", targetStatus.toString(), "MerchantOrder: " + statusDTO.getMerchantOrderId());
+
         PaymentTransaction tx = transactionRepository
                 .findByMerchantOrderId(statusDTO.getMerchantOrderId())
                 .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + statusDTO.getMerchantOrderId()));
 
-        // 2. Provera da li je transakcija već završena (Idempotency check)
         if (tx.getStatus() != OrderStatus.PENDING) {
-            return; // Već je obrađeno, ne radimo ništa
+            return;
         }
 
-        // 3. Ažuriranje transakcije podacima iz PSP-a
         tx.setStatus(targetStatus);
         tx.setPaymentMethod(statusDTO.getPaymentMethod());
         transactionRepository.save(tx);
 
-        // 4. Ažuriranje narudžbine
         Order order = tx.getOrder();
         order.setOrderStatus(targetStatus);
-
         orderRepository.save(order);
+
+        auditLogger.logEvent("ORDER_STATUS_UPDATED", targetStatus.toString(), "Order: " + order.getId());
     }
 
-    /**
-     * Dobavljanje svih narudžbina korisnika sa detaljima transakcije
-     * Razdvaja aktivne i prošle usluge
-     */
     public List<OrderHistoryDTO> getUserOrders(Long userId) {
         List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
         LocalDateTime now = LocalDateTime.now();
-        
+
         return orders.stream().map(order -> {
             OrderHistoryDTO dto = new OrderHistoryDTO();
-            
+
             dto.setOrderId(order.getId());
             dto.setType(order.getType());
             dto.setOrderStatus(order.getOrderStatus());
@@ -272,34 +250,30 @@ public class OrderService {
             dto.setCompletedAt(order.getCompletedAt());
             dto.setStartDate(order.getStartDate());
             dto.setEndDate(order.getEndDate());
-            
-            // Vehicle detalji
+
             if (order.getVehicle() != null) {
                 dto.setVehicleId(order.getVehicle().getId());
                 dto.setVehicleModel(order.getVehicle().getModel());
                 dto.setVehicleImageUrl(order.getVehicle().getImageUrl());
                 dto.setPricePerDay(order.getPricePerDay());
             }
-            
-            // Equipment detalji
+
             if (order.getEquipment() != null) {
                 dto.setEquipmentId(order.getEquipment().getId());
-                dto.setEquipmentType(order.getEquipment().getEquipmentType() != null ? 
-                    order.getEquipment().getEquipmentType().toString() : null);
+                dto.setEquipmentType(order.getEquipment().getEquipmentType() != null ?
+                        order.getEquipment().getEquipmentType().toString() : null);
             }
-            
-            // Insurance detalji
+
             if (order.getInsurance() != null) {
                 dto.setInsuranceId(order.getInsurance().getId());
-                dto.setInsuranceType(order.getInsurance().getType() != null ? 
-                    order.getInsurance().getType().toString() : null);
+                dto.setInsuranceType(order.getInsurance().getType() != null ?
+                        order.getInsurance().getType().toString() : null);
                 dto.setInsurancePrice(order.getPrice());
             }
-            
-            // PaymentTransaction detalji - pronađi transakciju po order ID-u
+
             PaymentTransaction tx = transactionRepository.findByOrderId(order.getId())
-                .orElse(null);
-            
+                    .orElse(null);
+
             if (tx != null) {
                 dto.setMerchantOrderId(tx.getMerchantOrderId());
                 dto.setPspPaymentId(tx.getPspPaymentId());
@@ -307,32 +281,27 @@ public class OrderService {
                 dto.setPaymentStatus(tx.getStatus());
                 dto.setPaymentCreatedAt(tx.getCreatedAt());
             }
-            
-            // Određivanje da li je usluga aktivna
+
             boolean isActive = false;
             if (order.getOrderStatus() == OrderStatus.CONFIRMED) {
                 if (order.getType() == OrderType.VEHICLE || order.getType() == OrderType.EQUIPMENT) {
-                    // Za vozilo i opremu: aktivno ako je trenutni datum između startDate i endDate
                     if (order.getStartDate() != null && order.getEndDate() != null) {
                         isActive = !now.isBefore(order.getStartDate()) && !now.isAfter(order.getEndDate());
                     }
                 } else if (order.getType() == OrderType.INSURANCE) {
-                    // Za osiguranje: sve CONFIRMED narudžbine su aktivne (trajno važe)
                     isActive = true;
                 }
             }
             dto.setActive(isActive);
-            
+
             return dto;
         }).collect(java.util.stream.Collectors.toList());
     }
 
-    // Izvršava se svakih 60 sekundi (promeni po potrebi, npr. 300000 za 5 min)
-    @Scheduled(fixedRate = 600000) // Provera svakog minuta
+    @Scheduled(fixedRate = 600000)
     public void reconcilePendingOrders() {
-        System.out.println("--- SCHEDULER: Provera zaglavljenih porudžbina ---");
+        auditLogger.logEvent("SCHEDULER_RECONCILE", "START", "Checking stuck orders...");
 
-        // Uzimamo sve PENDING porudžbine starije od 5 minuta (da damo korisniku vremena da kuca karticu)
         LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
         List<Order> stuckOrders = orderRepository.findByOrderStatusAndCreatedAtBefore(OrderStatus.PENDING, fiveMinutesAgo);
 
@@ -341,55 +310,37 @@ public class OrderService {
                 PaymentTransaction tx = transactionRepository.findByOrderId(order.getId()).orElse(null);
                 if (tx == null) continue;
 
-                // 1. Pripremi URL (sa onim fix-om za /init)
                 String cleanBaseUrl = pspApiUrl.replace("/init", "");
                 String checkUrl = cleanBaseUrl + "/status/" + merchantId + "/" + tx.getMerchantOrderId();
 
                 try {
-                    // 2. Pitaj PSP
                     ResponseEntity<PaymentStatusDTO> response = restTemplate.getForEntity(checkUrl, PaymentStatusDTO.class);
                     PaymentStatusDTO pspData = response.getBody();
 
                     if (pspData != null) {
-                        String pspStatus = pspData.getStatus(); // "CREATED", "SUCCESS", "FAILED"...
+                        String pspStatus = pspData.getStatus();
 
-                        // --- LOGIKA ZA TIMEOUT ---
-
-                        // Slučaj A: Uspešno ili Neuspešno (Konačni statusi)
                         if ("SUCCESS".equals(pspStatus)) {
                             processCallback(pspData, OrderStatus.CONFIRMED);
-                            System.out.println("Order " + order.getId() + " -> CONFIRMED (Naknadna provera)");
                         }
                         else if ("FAILED".equals(pspStatus) || "ERROR".equals(pspStatus)) {
                             processCallback(pspData, OrderStatus.CANCELLED);
-                            System.out.println("Order " + order.getId() + " -> CANCELLED (PSP odbio)");
                         }
-                        // Slučaj B: Korisnik još nije završio (CREATED / WAITING)
                         else {
-                            // Proveravamo da li je isteklo 30 minuta od kreiranja porudžbine
                             long minutesSinceCreation = ChronoUnit.MINUTES.between(order.getCreatedAt(), LocalDateTime.now());
 
                             if (minutesSinceCreation > 30) {
-                                // ISTEKLO VREME! Otkazujemo porudžbinu da oslobodimo vozilo.
-                                System.out.println("Order " + order.getId() + " je PENDING predugo (" + minutesSinceCreation + " min). Otkazujem.");
-
-                                // Obavesti PSP da ažurira svoju transakciju na FAILED
+                                auditLogger.logEvent("ORDER_TIMEOUT", "CANCELLED", "Order: " + order.getId());
                                 notifyPspOfCancellation(tx.getMerchantOrderId());
-
-                                // Ručno otkazivanje jer nemamo status od PSP-a da prosledimo u processCallback
                                 order.setOrderStatus(OrderStatus.CANCELLED);
                                 orderRepository.save(order);
-
-                                // Ažuriraj i lokalnu transakciju da znamo da je istekla
                                 tx.setStatus(OrderStatus.CANCELLED);
                                 transactionRepository.save(tx);
-                            } else {
-                                System.out.println("Order " + order.getId() + " je još uvek " + pspStatus + ". Čekamo još malo...");
                             }
                         }
                     }
                 } catch (Exception e) {
-                    System.err.println("Greška u komunikaciji sa PSP za order " + tx.getMerchantOrderId() + ": " + e.getMessage());
+                    auditLogger.logEvent("RECONCILE_COMMUNICATION_ERROR", "ERROR", "MerchantOrder: " + tx.getMerchantOrderId());
                 }
 
             } catch (Exception e) {
@@ -398,14 +349,9 @@ public class OrderService {
         }
     }
 
-    /**
-     * Obaveštava PSP da je transakcija otkazana od strane Web Shopa
-     * (slučaj kada korisnik nikad ne izabere metodu plaćanja - timeout 30 min).
-     */
     private void notifyPspOfCancellation(String merchantOrderId) {
         try {
             String cancelUrl = pspApiUrl.replace("/init", "") + "/cancel";
-
             Map<String, String> requestBody = new HashMap<>();
             requestBody.put("merchantId", merchantId);
             requestBody.put("merchantPassword", merchantPassword);
@@ -415,10 +361,10 @@ public class OrderService {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
             restTemplate.postForEntity(cancelUrl, entity, Void.class);
-            System.out.println("PSP obavešten o otkazivanju transakcije: " + merchantOrderId);
+
+            auditLogger.logEvent("PSP_CANCEL_NOTIFICATION", "SUCCESS", "MerchantOrder: " + merchantOrderId);
         } catch (Exception e) {
-            System.err.println("Greška pri obaveštavanju PSP-a o otkazivanju: " + e.getMessage());
-            // Ne prekidamo tok - Web Shop je već otkazao, PSP će možda uhvatiti preko svog expire job-a
+            auditLogger.logEvent("PSP_CANCEL_NOTIFICATION_ERROR", "FAILED", e.getMessage());
         }
     }
 }
