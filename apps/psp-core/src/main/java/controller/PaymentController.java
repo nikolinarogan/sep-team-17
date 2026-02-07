@@ -7,6 +7,7 @@ import model.PaymentTransaction;
 import repository.PaymentMethodRepository;
 import repository.PaymentTransactionRepository;
 import service.*;
+import tools.AuditLogger; // Dodato
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,39 +24,53 @@ public class PaymentController {
     private final PaymentService paymentService;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaymentMethodRepository paymentMethodRepository;
-
     private final PaymentRegistry paymentRegistry;
     private final GenericPaymentService genericPaymentService;
+    private final AuditLogger auditLogger; // Dodato
 
     public PaymentController(PaymentService paymentService,
                              PaymentTransactionRepository paymentTransactionRepository,
                              PaymentMethodRepository paymentMethodRepository,
                              PaymentRegistry paymentRegistry,
-                             GenericPaymentService genericPaymentService) {
+                             GenericPaymentService genericPaymentService,
+                             AuditLogger auditLogger) { // Dodato u konstruktor
         this.paymentService = paymentService;
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.paymentRegistry = paymentRegistry;
         this.genericPaymentService = genericPaymentService;
+        this.auditLogger = auditLogger;
     }
 
     @PostMapping("/init")
     public ResponseEntity<PaymentResponseDTO> initializePayment(@Valid @RequestBody PaymentRequestDTO request) {
+        // PCI DSS: Logujemo inicijalizaciju od strane prodavca (Merchant ID je "KO")
+        auditLogger.logEvent("PAYMENT_INIT_REQUEST", "START",
+                "Merchant: " + request.getMerchantId() + " | OrderID: " + request.getMerchantOrderId());
+
         return ResponseEntity.ok(paymentService.createTransaction(request));
     }
 
     @GetMapping("/{uuid}")
     public ResponseEntity<CheckoutResponseDTO> getCheckoutPageData(@PathVariable String uuid) {
+        // Logujemo pristup checkout strani (IP klijenta se hvata automatski)
+        auditLogger.logEvent("CHECKOUT_DATA_REQUEST", "SUCCESS", "UUID: " + uuid);
+
         return ResponseEntity.ok(paymentService.getCheckoutData(uuid));
     }
 
     @PostMapping("/cancel")
     public ResponseEntity<Void> cancelTransaction(@Valid @RequestBody CancelRequestDTO request) {
+        auditLogger.logEvent("TRANSACTION_CANCEL_ATTEMPT", "PENDING",
+                "Merchant: " + request.getMerchantId() + " | OrderID: " + request.getMerchantOrderId());
+
         paymentService.cancelTransactionByMerchant(
                 request.getMerchantId(),
                 request.getMerchantPassword(),
                 request.getMerchantOrderId()
         );
+
+        auditLogger.logEvent("TRANSACTION_CANCEL_FINISHED", "SUCCESS", "OrderID: " + request.getMerchantOrderId());
         return ResponseEntity.ok().build();
     }
 
@@ -63,6 +78,10 @@ public class PaymentController {
     public ResponseEntity<PaymentStatusDTO> checkStatus(
             @PathVariable String merchantId,
             @PathVariable String merchantOrderId) {
+
+        auditLogger.logEvent("STATUS_CHECK_POLLING", "SUCCESS",
+                "Merchant: " + merchantId + " | OrderID: " + merchantOrderId);
+
         return ResponseEntity.ok(paymentService.checkTransactionStatus(merchantId, merchantOrderId));
     }
 
@@ -74,8 +93,15 @@ public class PaymentController {
             @PathVariable String uuid,
             @PathVariable String methodName) {
 
+        // PCI DSS: Logujemo odabir metode (Kupac bira, IP adresa identifikuje)
+        auditLogger.logEvent("PAYMENT_METHOD_SELECTION", "START",
+                "UUID: " + uuid + " | Method: " + methodName);
+
         PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + uuid));
+                .orElseThrow(() -> {
+                    auditLogger.logSecurityAlert("INIT_FAILED_INVALID_UUID", "UUID: " + uuid);
+                    return new RuntimeException("Transakcija nije pronađena: " + uuid);
+                });
 
         try {
             PaymentMethod methodConfig = paymentMethodRepository.findByName(methodName)
@@ -90,6 +116,9 @@ public class PaymentController {
                 result = provider.initiate(tx);
             }
 
+            auditLogger.logEvent("PAYMENT_METHOD_INIT_SUCCESS", "SUCCESS",
+                    "UUID: " + uuid + " | Redirecting to provider.");
+
             Map<String, Object> response = new HashMap<>();
             if (result.getRedirectUrl() != null) {
                 response.put("paymentUrl", result.getRedirectUrl());
@@ -100,18 +129,18 @@ public class PaymentController {
             return ResponseEntity.ok(response);
 
         } catch (UnknownPaymentmethodException e) {
+            auditLogger.logSecurityAlert("UNKNOWN_METHOD_REQUEST", "Method: " + methodName);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            e.printStackTrace();
+            auditLogger.logEvent("PAYMENT_METHOD_INIT_FAILED", "ERROR",
+                    "UUID: " + uuid + " | Error: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "Servis trenutno nije dostupan: " + e.getMessage(), "retryable", true));
         }
     }
 
     /**
-     * UNIVERZALNI CALLBACK ZA MIKROSERVISE (PayPal, Crypto...)
-     * Mikroservisi vraćaju korisnika ovde nakon plaćanja.
-     * URL primjer: /api/payments/external/capture?method=CRYPTO&token=xyz&uuid=...
+     * UNIVERZALNI CALLBACK ZA MIKROSERVISE
      */
     @GetMapping("/external/capture")
     public ResponseEntity<?> captureExternal(
@@ -119,12 +148,14 @@ public class PaymentController {
             @RequestParam("token") String executionToken,
             @RequestParam("uuid") String uuid) {
 
+        auditLogger.logEvent("EXTERNAL_CAPTURE_CALLBACK", "START",
+                "Method: " + methodName + " | UUID: " + uuid);
+
         try {
             boolean isCaptured = genericPaymentService.capture(methodName, executionToken);
 
             if (!isCaptured) {
-                System.out.println("CAPTURE NIJE USPEO - VRAĆAM KORISNIKA NA IZBOR METODE");
-
+                auditLogger.logEvent("CAPTURE_FAILED", "RETRY_REQUIRED", "UUID: " + uuid);
                 String retryUrl = "https://localhost:4201/checkout/" + uuid + "?error=retry_method";
 
                 return ResponseEntity.status(HttpStatus.FOUND)
@@ -132,7 +163,6 @@ public class PaymentController {
                         .build();
             }
 
-            // 2. Ako je capture USPEO, onda završavamo regularno
             dto.PaymentCallbackDTO callback = new dto.PaymentCallbackDTO();
             callback.setPaymentId(uuid);
             callback.setStatus("SUCCESS");
@@ -140,12 +170,14 @@ public class PaymentController {
 
             String redirectUrl = paymentService.finaliseTransaction(callback, methodName);
 
+            auditLogger.logEvent("EXTERNAL_CAPTURE_SUCCESS", "SUCCESS", "UUID: " + uuid);
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(redirectUrl))
                     .build();
 
         } catch (Exception e) {
-            // U slučaju totalne katastrofe (npr. pukla baza), ipak ide na failed
+            auditLogger.logSecurityAlert("EXTERNAL_CAPTURE_CRITICAL_FAIL",
+                    "UUID: " + uuid + " | Error: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create("https://localhost:4200/payment-failed?uuid=" + uuid))
                     .build();
@@ -158,8 +190,11 @@ public class PaymentController {
     @GetMapping("/payment-callback")
     public ResponseEntity<Void> handleBrowserCallback(@RequestParam String paymentId,
                                                       @RequestParam(required = false) String status) {
+        auditLogger.logEvent("BANK_BROWSER_RETURN", status != null ? status : "FAILED", "PaymentID: " + paymentId);
+
         String finalStatus = (status != null) ? status : "FAILED";
         String webShopUrl = paymentService.getRedirectUrl(paymentId, finalStatus);
+
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(webShopUrl))
                 .build();
@@ -170,7 +205,11 @@ public class PaymentController {
      */
     @PostMapping("/finalize")
     public ResponseEntity<String> finalizeCard(@RequestBody PaymentCallbackDTO callback) {
+        auditLogger.logEvent("S2S_CARD_FINALIZE", "START", "UUID: " + callback.getPaymentId());
+
         String redirectUrl = paymentService.finaliseTransaction(callback, "CARD");
+
+        auditLogger.logEvent("S2S_CARD_FINALIZE_SUCCESS", "SUCCESS", "UUID: " + callback.getPaymentId());
         return ResponseEntity.ok(redirectUrl);
     }
 
@@ -179,7 +218,11 @@ public class PaymentController {
      */
     @PostMapping("/finalize/qr")
     public ResponseEntity<String> finalizeQr(@RequestBody PaymentCallbackDTO callback) {
+        auditLogger.logEvent("S2S_QR_FINALIZE", "START", "UUID: " + callback.getPaymentId());
+
         String redirectUrl = paymentService.finaliseTransaction(callback, "QR_CODE");
+
+        auditLogger.logEvent("S2S_QR_FINALIZE_SUCCESS", "SUCCESS", "UUID: " + callback.getPaymentId());
         return ResponseEntity.ok(redirectUrl);
     }
 }
