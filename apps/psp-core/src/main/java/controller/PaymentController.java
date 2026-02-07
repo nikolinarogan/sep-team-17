@@ -115,40 +115,40 @@ public class PaymentController {
      */
     @GetMapping("/external/capture")
     public ResponseEntity<?> captureExternal(
-                                              @RequestParam("method") String methodName,
-                                              @RequestParam("token") String executionToken,
-                                              @RequestParam("uuid") String uuid) {
-
-        System.out.println("--- PSP CORE: STIGAO POVRATAK SA MIKROSERVISA ---");
-        System.out.println("Method: " + methodName);
-        System.out.println("Token: " + executionToken);
-        System.out.println("UUID: " + uuid);
+            @RequestParam("method") String methodName,
+            @RequestParam("token") String executionToken,
+            @RequestParam("uuid") String uuid) {
 
         try {
-            // 1. Generički capture poziv ka mikroservisu
             boolean isCaptured = genericPaymentService.capture(methodName, executionToken);
-            System.out.println("Capture rezultat: " + isCaptured);
 
-            // 2. Priprema statusa za Core
+            if (!isCaptured) {
+                System.out.println("CAPTURE NIJE USPEO - VRAĆAM KORISNIKA NA IZBOR METODE");
+
+                String retryUrl = "https://localhost:4201/checkout/" + uuid + "?error=retry_method";
+
+                return ResponseEntity.status(HttpStatus.FOUND)
+                        .location(URI.create(retryUrl))
+                        .build();
+            }
+
+            // 2. Ako je capture USPEO, onda završavamo regularno
             dto.PaymentCallbackDTO callback = new dto.PaymentCallbackDTO();
             callback.setPaymentId(uuid);
-            callback.setStatus(isCaptured ? "SUCCESS" : "FAILED");
+            callback.setStatus("SUCCESS");
             callback.setExecutionId(executionToken);
 
-            // 3. Ažuriranje baze i obaveštavanje Web Shop-a
             String redirectUrl = paymentService.finaliseTransaction(callback, methodName);
 
-            System.out.println("Redirektujem na: " + redirectUrl);
-
-            // 4. Redirekcija kupca nazad na Web Shop (Angular)
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(redirectUrl))
                     .build();
 
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("DOŠLO JE DO GREŠKE U PSP-CORE: " + e.getMessage());
+            // U slučaju totalne katastrofe (npr. pukla baza), ipak ide na failed
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create("https://localhost:4200/payment-failed?uuid=" + uuid))
+                    .build();
         }
     }
 

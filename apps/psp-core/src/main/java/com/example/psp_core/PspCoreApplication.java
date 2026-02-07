@@ -14,11 +14,8 @@ import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactoryBuilder;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestTemplate;
 
 import javax.net.ssl.SSLContext;
-
-
 
 @SpringBootApplication
 @ComponentScan(basePackages = {
@@ -38,6 +35,10 @@ public class PspCoreApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(PspCoreApplication.class, args);
 	}
+
+	/**
+	 * Eureka supplier koji koristi tvoju SSL logiku.
+	 */
 	@Bean
 	public EurekaClientHttpRequestFactorySupplier eurekaClientHttpRequestFactorySupplier() {
 		return (sslContext, hostnameVerifier) -> {
@@ -68,6 +69,10 @@ public class PspCoreApplication {
 		}
 	}
 
+	/**
+	 * RestClient Builder koji koristi tvoj Insecure SSL kontekst.
+	 * NAPOMENA: Ovde VIŠE NEMA @LoadBalanced jer ručno upravljamo instancama.
+	 */
 	@Bean
 	public RestClient.Builder restClientBuilder() {
 		return RestClient.builder()
@@ -91,6 +96,4 @@ public class PspCoreApplication {
 			throw new RuntimeException("Greška pri kreiranju SSL konteksta", e);
 		}
 	}
-
-
 }
