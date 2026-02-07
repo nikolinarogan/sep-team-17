@@ -16,8 +16,18 @@ public class Admin {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String username;
+    private String username; // da bude email
 
     @Column(nullable = false)
     private String password;
+
+    @Column(name = "first_name")
+    private String firstName;
+
+    @Column(name = "last_name")
+    private String lastName;
+
+    public String getFullName() {
+        return (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "").trim();
+    }
 }
