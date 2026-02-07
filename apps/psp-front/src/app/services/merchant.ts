@@ -7,8 +7,8 @@ import { MerchantCreateRequest, MerchantCredentials } from '../models/psp-models
   providedIn: 'root',
 })
 export class Merchant {
-  private apiUrl = 'https://localhost:8443/api/merchants';
-  private adminApiUrl = 'https://localhost:8443/api/admin';
+  private apiUrl = 'https://localhost:8000/api/merchants';
+  private adminApiUrl = 'https://localhost:8000/api/admin';
 
   constructor(private http: HttpClient) { }
 

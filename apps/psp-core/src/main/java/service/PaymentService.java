@@ -95,38 +95,29 @@ public class PaymentService {
      * IZMENA: Sada tražimo i po Bankinom ID-u (executionId) i ne pucamo ako je status SUCCESS
      */
     public CheckoutResponseDTO getCheckoutData(String uuid) {
-        // 1. Prvo probaj da nađeš po našem UUID-u
-        PaymentTransaction tx = transactionRepository.findByUuid(uuid)
-                // 2. Ako ne nađeš, probaj po Bankinom ID-u (executionId)
-                .or(() -> transactionRepository.findByExecutionId(uuid))
-                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + uuid));
+        System.out.println("[DEBUG] Ulazim u getCheckoutData za UUID: " + uuid);
 
-        if (tx.getMerchantTimestamp().plusMinutes(30).isBefore(LocalDateTime.now())) {
-            if (tx.getStatus() == TransactionStatus.CREATED) {
-                tx.setStatus(TransactionStatus.FAILED);
-                transactionRepository.save(tx);
-            }
-            throw new RuntimeException("Link za plaćanje je istekao! (Maksimalno vreme: 30 min)");
-        }
-        // 3. Olabavili smo proveru. Ako je status SUCCESS, samo ćemo to i vratiti frontendu,
-        // umesto da bacimo grešku. Frontend će znati šta s tim.
-        /*
-        if (tx.getStatus() != TransactionStatus.CREATED) {
-            throw new RuntimeException("Ova transakcija je već obrađena ili nije validna.");
-        }
-        */
+        PaymentTransaction tx = transactionRepository.findByUuid(uuid)
+                .or(() -> transactionRepository.findByExecutionId(uuid))
+                .orElseThrow(() -> {
+                    System.out.println("[ERROR] Transakcija NIJE PRONAĐENA u bazi za UUID: " + uuid);
+                    return new RuntimeException("Transakcija nije pronađena: " + uuid);
+                });
+
+        System.out.println("[DEBUG] Transakcija pronađena. Status: " + tx.getStatus() + ", Iznos: " + tx.getAmount());
 
         List<MerchantSubscription> subscriptions = subscriptionRepository.findByMerchantMerchantId(tx.getMerchantId());
 
-        if (subscriptions.isEmpty()) {
-            throw new RuntimeException("Prodavac nema aktivnih metoda plaćanja!");
-        }
+        System.out.println("[DEBUG] Broj pronađenih metoda plaćanja za merchanta: " + subscriptions.size());
 
         List<PaymentMethodDTO> availableMethods = subscriptions.stream()
-                .map(sub -> new PaymentMethodDTO(
-                        sub.getPaymentMethod().getName(),
-                        sub.getPaymentMethod().getServiceUrl()
-                ))
+                .map(sub -> {
+                    System.out.println("[DEBUG] Metoda: " + sub.getPaymentMethod().getName() + " URL: " + sub.getPaymentMethod().getServiceUrl());
+                    return new PaymentMethodDTO(
+                            sub.getPaymentMethod().getName(),
+                            sub.getPaymentMethod().getServiceUrl()
+                    );
+                })
                 .collect(Collectors.toList());
 
         return new CheckoutResponseDTO(
