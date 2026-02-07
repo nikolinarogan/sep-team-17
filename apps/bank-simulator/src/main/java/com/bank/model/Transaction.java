@@ -42,6 +42,9 @@ public class Transaction {
     @Column(name = "stan")
     private String stan;
 
+    @Column(name = "callback_url")
+    private String callbackUrl;
+
     public String getStan() { return stan; }
     public void setStan(String stan) { this.stan = stan; }
 }

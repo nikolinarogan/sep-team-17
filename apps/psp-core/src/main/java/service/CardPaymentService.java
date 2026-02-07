@@ -10,6 +10,8 @@ import org.springframework.web.client.RestTemplate;
 import repository.PaymentTransactionRepository;
 import repository.MerchantRepository;
 import tools.AuditLogger;
+import org.springframework.cloud.client.serviceregistry.Registration;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -24,15 +26,20 @@ public class CardPaymentService implements PaymentProvider {
     private final PaymentTransactionRepository transactionRepository;
     private final MerchantRepository merchantRepository;
     private final AuditLogger auditLogger;
+    private final Registration registration;
 
     public CardPaymentService(RestTemplate restTemplate,
                               PaymentTransactionRepository paymentTransactionRepository,
                               MerchantRepository merchantRepository,
-                              AuditLogger auditLogger) {
+                              AuditLogger auditLogger, @Qualifier("eurekaRegistration") Registration registration) {
+
+
+
         this.restTemplate = restTemplate;
         this.transactionRepository = paymentTransactionRepository;
         this.merchantRepository = merchantRepository;
         this.auditLogger = auditLogger;
+        this.registration = registration;
     }
 
     @Override
@@ -59,6 +66,10 @@ public class CardPaymentService implements PaymentProvider {
                     return new RuntimeException("Prodavac nije pronađen!");
                 });
 
+        String myHost = registration.getHost();
+        int myPort = registration.getPort();
+        String myCallbackUrl = "https://" + myHost + ":" + myPort + "/api/payments/payment-callback";
+
         Map<String, Object> request = new HashMap<>();
         request.put("merchantId", merchant.getMerchantId());
         request.put("merchantPassword", merchant.getMerchantPassword());
@@ -67,6 +78,7 @@ public class CardPaymentService implements PaymentProvider {
         request.put("pspTransactionId", transaction.getUuid());
         request.put("pspTimestamp", LocalDateTime.now());
         request.put("stan", stan);
+        request.put("callbackUrl", myCallbackUrl);
 
         int maxAttempts = 3;
         Exception lastException = null;

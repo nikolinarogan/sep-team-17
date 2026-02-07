@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <conversionRule conversionWord="pciMask" class="tools.PciMaskingConverter" />
+    <conversionRule conversionWord="pciMask" class="com.example.psp_paypal.tools.PciMaskingConverter" />
     <property name="LOG_PATH" value="./logs" />
 
     <appender name="AuditFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
