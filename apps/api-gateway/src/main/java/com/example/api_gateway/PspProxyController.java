@@ -8,24 +8,30 @@ import org.springframework.web.client.RestClient;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+
 import javax.net.ssl.*;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class PspProxyController {
 
     private final RestClient.Builder restClientBuilder;
     private final DiscoveryClient discoveryClient;
+
+    private final AtomicInteger requestCounter = new AtomicInteger(0);
 
     public PspProxyController(RestClient.Builder restClientBuilder, DiscoveryClient discoveryClient) {
         this.restClientBuilder = restClientBuilder;
         this.discoveryClient = discoveryClient;
     }
 
-    @RequestMapping(value = "/api/payments/**")
+    // Promenjeno sa /api/payments/** na /api/** da bi hvatali sve rute (admin, merchants, itd.)
+    @RequestMapping(value = "/api/**")
     public ResponseEntity<?> proxyRequest(HttpServletRequest request, @RequestBody(required = false) byte[] body) {
         // 1. Pronalaženje servisa
         List<ServiceInstance> instances = discoveryClient.getInstances("PSP-CORE");
@@ -34,10 +40,16 @@ public class PspProxyController {
             return ResponseEntity.status(503).body("PSP-CORE servis nije dostupan na Eureki");
         }
 
-        ServiceInstance instance = instances.get(0);
-        String baseUrl = instance.getUri().toString();
+        // --- ROUND ROBIN LOGIKA ---
+        int currentCount = requestCounter.getAndIncrement();
+        int instanceIndex = Math.abs(currentCount) % instances.size();
+
+        ServiceInstance instance = instances.get(instanceIndex);
 
         String path = request.getRequestURI();
+        System.out.println("GATEWAY -> " + request.getMethod() + " " + path + " prosleđujem na instancu port: " + instance.getPort());
+
+        String baseUrl = instance.getUri().toString();
         String query = request.getQueryString();
         String fullPath = path + (query != null ? "?" + query : "");
 
@@ -66,10 +78,10 @@ public class PspProxyController {
                 }
 
                 super.prepareConnection(connection, httpMethod);
-
                 connection.setInstanceFollowRedirects(false);
             }
         };
+
         return restClientBuilder
                 .requestFactory(factory)
                 .build()

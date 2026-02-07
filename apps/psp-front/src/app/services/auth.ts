@@ -7,7 +7,7 @@ import { LoginRequestDTO } from '../models/psp-models';
   providedIn: 'root',
 })
 export class Auth {
-  private apiUrl = 'https://localhost:8443/api/admin';
+  private apiUrl = 'https://localhost:8000/api/admin';
 
   constructor(private http: HttpClient) { }
 

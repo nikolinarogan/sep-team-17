@@ -5,28 +5,38 @@ import { Payment } from '../../services/payment';
 import { QRCodeComponent } from 'angularx-qrcode';
 import { ZXingScannerModule } from '@zxing/ngx-scanner';
 import { Subscription } from 'rxjs';
+import { ActivatedRoute } from '@angular/router'; // Uvezeno za čitanje URL parametara
 
 @Component({
   selector: 'app-checkout',
+  standalone: true,
   imports: [CommonModule, QRCodeComponent, ZXingScannerModule],
   templateUrl: './checkout.html',
   styleUrl: './checkout.css',
 })
-export class Checkout implements OnInit{
-  @Input() uuid!: string; 
+export class Checkout implements OnInit {
+  @Input() uuid!: string;
 
   checkoutData: CheckoutResponse | null = null;
   isLoading = true;
   errorMessage = '';
-  qrCodeString: string = ''; 
+  qrCodeString: string = '';
   showScanner = false;
 
-   // NOVO: Čuvamo Subscription da možemo da ga otkažemo
   private initiateSubscription: Subscription | null = null;
 
-  constructor(private paymentService: Payment) {}
+  constructor(
+    private paymentService: Payment,
+    private route: ActivatedRoute 
+  ) {}
 
   ngOnInit(): void {
+    this.route.queryParams.subscribe(params => {
+      if (params['error'] === 'retry_method') {
+        this.errorMessage = 'Došlo je do problema sa servisom za plaćanje. Vaša transakcija je i dalje aktivna, molimo pokušajte ponovo ili izaberite drugu metodu.';
+      }
+    });
+
     if (this.uuid) {
       this.loadData(this.uuid);
     } else {
@@ -34,6 +44,7 @@ export class Checkout implements OnInit{
       this.isLoading = false;
     }
   }
+
   cancelInitiate(): void {
     if (this.initiateSubscription) {
       this.initiateSubscription.unsubscribe();
@@ -41,8 +52,8 @@ export class Checkout implements OnInit{
     }
     this.isLoading = false;
     this.errorMessage = '';
-    // Korisnik ostaje na stranici i može odmah da izabere drugu metodu
   }
+
   loadData(uuid: string) {
     this.paymentService.getCheckoutData(uuid).subscribe({
       next: (data) => {
@@ -57,71 +68,56 @@ export class Checkout implements OnInit{
     });
   }
 
-selectMethod(method: PaymentMethod) {
-  this.isLoading = true;
-  this.errorMessage = '';
-  // NOVO: Otkaži prethodni zahtev ako postoji (npr. dupli klik)
-  if (this.initiateSubscription) {
-    this.initiateSubscription.unsubscribe();
-  }
-  // this.paymentService.initiatePayment(this.uuid, method.name).subscribe({
-  //   next: (response: any) => {
-  //     if (response?.paymentUrl) {
-  //       window.location.href = response.paymentUrl;
-  //     } else if (response?.qrData) {
-  //       this.qrCodeString = response.qrData;
-  //       this.isLoading = false;
-  //     } else {
-  //       this.errorMessage = 'Greška: Nije dobijen validan odgovor od servera.';
-  //       this.isLoading = false;
-  //     }
-  //   },
-  //   error: (err) => {
-  //     console.error('Greška pri inicijalizaciji plaćanja:', err);
-  //     this.errorMessage = err?.error?.error || err?.error?.message || 'Došlo je do greške pri povezivanju.'; 
-  //     this.isLoading = false;
-  //   }
-  // });
-  this.initiateSubscription = this.paymentService.initiatePayment(this.uuid, method.name).subscribe({
-    next: (response: any) => {
-      this.initiateSubscription = null;
-      if (response?.paymentUrl) {
-        window.location.href = response.paymentUrl;
-      } else if (response?.qrData) {
-        this.qrCodeString = response.qrData;
-        this.isLoading = false;
-      } else {
-        this.errorMessage = 'Greška: Nije dobijen validan odgovor od servera.';
+  selectMethod(method: PaymentMethod) {
+    this.isLoading = true;
+    this.errorMessage = '';
+
+    if (this.initiateSubscription) {
+      this.initiateSubscription.unsubscribe();
+    }
+
+    this.initiateSubscription = this.paymentService.initiatePayment(this.uuid, method.name).subscribe({
+      next: (response: any) => {
+        this.initiateSubscription = null;
+
+        if (response?.error) {
+          this.errorMessage = response.error;
+          this.isLoading = false;
+          return;
+        }
+
+        if (response?.paymentUrl) {
+          window.location.href = response.paymentUrl;
+        } else if (response?.qrData) {
+          this.qrCodeString = response.qrData;
+          this.isLoading = false;
+        } else {
+          this.errorMessage = 'Greška: Nije dobijen validan odgovor od servera.';
+          this.isLoading = false;
+        }
+      },
+      error: (err) => {
+        this.initiateSubscription = null;
+        console.error('Greška pri inicijalizaciji plaćanja:', err);
+
+        if (err?.name === 'TimeoutError' || err?.message?.includes('timeout')) {
+          this.errorMessage = 'Zahtev je istekao. Pokušajte ponovo ili izaberite drugu metodu plaćanja.';
+        } else if (err?.status === 503 && err?.error?.retryable) {
+          const baseMsg = err?.error?.error || 'Metoda plaćanja trenutno nije dostupna.';
+          this.errorMessage = baseMsg + ' Možete pokušati ponovo istom metodom ili izabrati drugu metodu plaćanja.';
+        } else {
+          this.errorMessage = err?.error?.error || err?.error?.message || 'Došlo je do greške pri povezivanju.';
+        }
         this.isLoading = false;
       }
-    },
-    error: (err) => {
-      this.initiateSubscription = null;
-      console.error('Greška pri inicijalizaciji plaćanja:', err);
-      // this.errorMessage = err?.error?.error || err?.error?.message || 'Došlo je do greške pri povezivanju.';
-      // this.isLoading = false;
-      // NOVO: Posebna poruka za timeout
-   if (err?.name === 'TimeoutError' || err?.message?.includes('timeout')) {
-    this.errorMessage = 'Zahtev je istekao. Pokušajte ponovo ili izaberite drugu metodu plaćanja.';
-  } else if (err?.status === 503 && err?.error?.retryable) {
-    // 503 + retryable = metoda privremeno nedostupna, ali može da proba ponovo
-    const baseMsg = err?.error?.error || 'Metoda plaćanja trenutno nije dostupna.';
-    this.errorMessage = baseMsg + ' Možete pokušati ponovo istom metodom ili izabrati drugu metodu plaćanja.';
-  } else {
-    this.errorMessage = err?.error?.error || err?.error?.message || 'Došlo je do greške pri povezivanju.';
+    });
   }
-  this.isLoading = false;
-    }
-  });
-}
-  
+
   onScanSuccess(scannedText: string) {
     console.log("Kamera je pročitala:", scannedText);
-    
     if (scannedText === this.qrCodeString) {
-
       this.isLoading = true;
-      this.showScanner = false; 
+      this.showScanner = false;
 
       this.paymentService.verifyQrScan(this.uuid, scannedText).subscribe({
         next: (res) => {
@@ -140,7 +136,7 @@ selectMethod(method: PaymentMethod) {
   }
 
   openMbankingSimulator() {
-      const bankUrl = 'https://localhost:8082/mbanking.html'; 
-      window.open(bankUrl, '_blank');
+    const bankUrl = 'https://localhost:8082/mbanking.html';
+    window.open(bankUrl, '_blank');
   }
 }

@@ -8,7 +8,7 @@ import { timeout } from 'rxjs/operators';
   providedIn: 'root'
 })
 export class Payment {
-  private apiUrl = 'https://localhost:8443/api';
+  private apiUrl = 'https://localhost:8000/api';
 
   constructor(private http: HttpClient) { }
 
