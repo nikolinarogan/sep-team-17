@@ -10,6 +10,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -50,7 +53,7 @@ public class OrderService {
     @Value("${webshop.merchant.password}")
     private String merchantPassword;
 
-    @Value("${psp.api.url}")
+    @Value("https://localhost:8000/api/payments/init")
     private String pspApiUrl;
 
     @Value("${webshop.frontend.url}")
@@ -186,7 +189,7 @@ public class OrderService {
         System.out.println("Error URL:   " + pspRequest.getErrorUrl());
         System.out.println("==============================================");
         try {
-            ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
+            /*ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
                     pspApiUrl, pspRequest, PaymentResponseDTO.class);
 
             // 5. SAČUVAJ psp ID TRANSAKCIJE (pspPaymentId)
@@ -196,7 +199,26 @@ public class OrderService {
                 transactionRepository.save(tx);
             }
 
-            return pspData; // Vraćaš URL i ID tvom kontroleru
+            return pspData; // Vraćaš URL i ID tvom kontroleru*/
+            // 1. EKSPLICITNO postavi Content-Type header na JSON
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // 2. Umotaj pspRequest i headere u HttpEntity
+            HttpEntity<PspRequestDTO> entity = new HttpEntity<>(pspRequest, headers);
+
+            // 3. Koristi entity u pozivu umesto čistog objekta
+            ResponseEntity<PaymentResponseDTO> response = restTemplate.postForEntity(
+                    pspApiUrl, entity, PaymentResponseDTO.class);
+
+            // 4. SAČUVAJ psp ID TRANSAKCIJE (pspPaymentId)
+            PaymentResponseDTO pspData = response.getBody();
+            if (pspData != null) {
+                tx.setPspPaymentId(pspData.getPaymentId());
+                transactionRepository.save(tx);
+            }
+
+            return pspData;
 
         } catch (Exception e) {
             // Ako PSP ne odgovori, poništavamo narudžbinu (ili stavljamo u ERROR)
@@ -389,7 +411,10 @@ public class OrderService {
             requestBody.put("merchantPassword", merchantPassword);
             requestBody.put("merchantOrderId", merchantOrderId);
 
-            restTemplate.postForEntity(cancelUrl, requestBody, Void.class);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
+            restTemplate.postForEntity(cancelUrl, entity, Void.class);
             System.out.println("PSP obavešten o otkazivanju transakcije: " + merchantOrderId);
         } catch (Exception e) {
             System.err.println("Greška pri obaveštavanju PSP-a o otkazivanju: " + e.getMessage());

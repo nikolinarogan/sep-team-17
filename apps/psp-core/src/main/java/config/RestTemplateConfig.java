@@ -47,7 +47,7 @@ public class RestTemplateConfig {
                 new HttpComponentsClientHttpRequestFactory();
         requestFactory.setHttpClient(httpClient);
 
-        // NOVO: Timeout da pozivi ka banci/PayPal-u ne blokiraju beskonačno
+        // Timeout da pozivi ka banci/PayPal-u ne blokiraju beskonačno
         requestFactory.setConnectionRequestTimeout(Duration.ofSeconds(15));  // Maksimalno 15s za uspostavljanje konekcije
         requestFactory.setReadTimeout(Duration.ofSeconds(25));     // Maksimalno 25s čekanja odgovora
 
