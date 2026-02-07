@@ -9,25 +9,39 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import repository.PaymentTransactionRepository;
 import repository.MerchantRepository;
+import tools.AuditLogger;
+import org.springframework.cloud.client.serviceregistry.Registration;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class CardPaymentService implements  PaymentProvider{
+public class CardPaymentService implements PaymentProvider {
 
     private static final String BANK_URL = "https://localhost:8082/api/bank/card";
 
     private final RestTemplate restTemplate;
     private final PaymentTransactionRepository transactionRepository;
     private final MerchantRepository merchantRepository;
+    private final AuditLogger auditLogger;
+    private final Registration registration;
 
-    public CardPaymentService(RestTemplate restTemplate, PaymentTransactionRepository paymentTransactionRepository, MerchantRepository merchantRepository) {
+    public CardPaymentService(RestTemplate restTemplate,
+                              PaymentTransactionRepository paymentTransactionRepository,
+                              MerchantRepository merchantRepository,
+                              AuditLogger auditLogger, @Qualifier("eurekaRegistration") Registration registration) {
+
+
+
         this.restTemplate = restTemplate;
         this.transactionRepository = paymentTransactionRepository;
         this.merchantRepository = merchantRepository;
+        this.auditLogger = auditLogger;
+        this.registration = registration;
     }
+
     @Override
     public String getProviderName() {
         return "CARD";
@@ -35,86 +49,104 @@ public class CardPaymentService implements  PaymentProvider{
 
     @Override
     public PaymentInitResult initiate(PaymentTransaction transaction) {
+        auditLogger.logEvent("CARD_PAYMENT_INIT_START", "PENDING", "UUID: " + transaction.getUuid());
         String url = initializePayment(transaction);
         return PaymentInitResult.builder().redirectUrl(url).build();
     }
+
     public String initializePayment(PaymentTransaction transaction) {
         String stan = String.valueOf((int) (Math.random() * 900000) + 100000);
 
-        // 2. ČUVAMO GA U BAZI
         transaction.setStan(stan);
         transactionRepository.save(transaction);
 
-        // 3. DOBAVLJAMO PRAVOG PRODAVCA IZ BAZE (Kako treba) 🏆
         Merchant merchant = merchantRepository.findByMerchantId(transaction.getMerchantId())
-                .orElseThrow(() -> new RuntimeException("Prodavac sa ID-jem " + transaction.getMerchantId() + " nije pronađen!"));
+                .orElseThrow(() -> {
+                    auditLogger.logSecurityAlert("MERCHANT_NOT_FOUND", "ID: " + transaction.getMerchantId());
+                    return new RuntimeException("Prodavac nije pronađen!");
+                });
+
+        String myHost = registration.getHost();
+        int myPort = registration.getPort();
+        String myCallbackUrl = "https://" + myHost + ":" + myPort + "/api/payments/payment-callback";
 
         Map<String, Object> request = new HashMap<>();
-
         request.put("merchantId", merchant.getMerchantId());
         request.put("merchantPassword", merchant.getMerchantPassword());
         request.put("amount", transaction.getAmount());
         request.put("currency", transaction.getCurrency());
         request.put("pspTransactionId", transaction.getUuid());
         request.put("pspTimestamp", LocalDateTime.now());
-
-        // Šaljemo STAN banci
         request.put("stan", stan);
-        // RETRY: 3 pokušaja sa eksponencijalnim backoff-om (1s, 2s, 4s)
+        request.put("callbackUrl", myCallbackUrl);
+
         int maxAttempts = 3;
         Exception lastException = null;
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            ResponseEntity<Map> response = this.restTemplate.postForEntity(BANK_URL, request, Map.class);
+            try {
+                // PCI DSS 10.2.4: Beleženje pokušaja komunikacije sa bankom
+                auditLogger.logEvent("BANK_COMMUNICATION_ATTEMPT", "RETRY",
+                        "Attempt: " + attempt + " | UUID: " + transaction.getUuid());
 
-            Map<String, Object> body = response.getBody();
+                ResponseEntity<Map> response = this.restTemplate.postForEntity(BANK_URL, request, Map.class);
+                Map<String, Object> body = response.getBody();
 
-            if (body != null && body.containsKey("paymentUrl")) {
-                String url = body.get("paymentUrl").toString();
-                System.out.println("---- IZVUČEN URL: " + url);
+                if (body != null && body.containsKey("paymentUrl")) {
+                    String url = body.get("paymentUrl").toString();
 
-                if (body.containsKey("paymentId")) {
-                    String bankPaymentId = body.get("paymentId").toString();
-                    transaction.setExecutionId(bankPaymentId);
-                    transactionRepository.save(transaction);
+                    if (body.containsKey("paymentId")) {
+                        String bankPaymentId = body.get("paymentId").toString();
+                        transaction.setExecutionId(bankPaymentId);
+                        transactionRepository.save(transaction);
+                    }
+
+                    auditLogger.logEvent("BANK_COMMUNICATION_SUCCESS", "SUCCESS", "URL received for UUID: " + transaction.getUuid());
+                    return url;
                 }
-                return url;
-            }
 
-            throw new RuntimeException("Banka nije vratila paymentUrl!");
+                throw new RuntimeException("Banka nije vratila paymentUrl!");
 
-        } catch (Exception e) {
-            lastException = e;
-            if (attempt < maxAttempts) {
-                try {
-                    long delayMs = 1000L * (1 << (attempt - 1));  // 1s, 2s, 4s
-                    Thread.sleep(delayMs);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Retry prekinut.", ie);
+            } catch (Exception e) {
+                auditLogger.logEvent("BANK_COMMUNICATION_ERROR", "ERROR",
+                        "Attempt " + attempt + " failed: " + e.getMessage());
+
+                lastException = e;
+                if (attempt < maxAttempts) {
+                    try {
+                        long delayMs = 1000L * (1 << (attempt - 1));
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Retry prekinut.", ie);
+                    }
                 }
             }
         }
-        }
-        throw new RuntimeException("Greška nakon " + maxAttempts + " pokušaja: " +
-                (lastException != null ? lastException.getMessage() : "Nepoznata greška"));
+
+        auditLogger.logSecurityAlert("BANK_UNAVAILABLE", "Failed to reach bank after " + maxAttempts + " attempts for UUID: " + transaction.getUuid());
+        throw new RuntimeException("Greška nakon " + maxAttempts + " pokušaja.");
     }
 
     public String handleCallback(String bankPaymentId, String status) {
+        // Beleženje povratnog poziva od banke (PCI DSS 10.2.1)
+        auditLogger.logEvent("BANK_CALLBACK_RECEIVED", status, "BankPaymentID: " + bankPaymentId);
+
         PaymentTransaction tx = transactionRepository.findByExecutionId(bankPaymentId)
-                .orElseThrow(() -> new RuntimeException("Nepoznata transakcija u PSP-u!"));
+                .orElseThrow(() -> {
+                    auditLogger.logSecurityAlert("UNKNOWN_BANK_CALLBACK", "BankPaymentID: " + bankPaymentId);
+                    return new RuntimeException("Nepoznata transakcija!");
+                });
 
         if ("SUCCESS".equals(status)) {
             tx.setStatus(TransactionStatus.SUCCESS);
             transactionRepository.save(tx);
-
+            auditLogger.logEvent("TRANSACTION_STATUS_UPDATE", "SUCCESS", "UUID: " + tx.getUuid());
             return tx.getSuccessUrl();
-
         } else {
             tx.setStatus(TransactionStatus.FAILED);
             transactionRepository.save(tx);
-
+            auditLogger.logEvent("TRANSACTION_STATUS_UPDATE", "FAILED", "UUID: " + tx.getUuid());
             return tx.getFailedUrl();
         }
     }
