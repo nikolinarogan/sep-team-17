@@ -27,6 +27,10 @@ public class Admin {
     @Column(name = "last_name")
     private String lastName;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AdminRole role;
+
     public String getFullName() {
         return (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "").trim();
     }

@@ -4,6 +4,7 @@ import dto.LoginRequestDTO;
 import dto.MerchantConfigDTO;
 import model.Admin;
 import model.Merchant;
+import org.springframework.security.access.prepost.PreAuthorize;
 import repository.AdminRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -57,6 +58,7 @@ public class AdminController {
     }
 
     @GetMapping("/merchants/{id}")
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<Merchant> getMerchant(@PathVariable String id) {
         auditLogger.logEvent("ADMIN_VIEW_MERCHANT", "SUCCESS", "Accessed merchant ID: " + id);
 
@@ -65,6 +67,7 @@ public class AdminController {
     }
 
     @PostMapping("/merchants/{id}/services")
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<String> updateMerchantServices(@PathVariable String id,
                                                          @RequestBody List<MerchantConfigDTO> configs) {
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_START", "PENDING", "Merchant: " + id);
