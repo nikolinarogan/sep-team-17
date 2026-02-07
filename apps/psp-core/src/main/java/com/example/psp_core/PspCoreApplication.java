@@ -13,6 +13,9 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactoryBuilder;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
+
 import javax.net.ssl.SSLContext;
 
 
@@ -64,4 +67,30 @@ public class PspCoreApplication {
 			throw new RuntimeException(e);
 		}
 	}
+
+	@Bean
+	public RestClient.Builder restClientBuilder() {
+		return RestClient.builder()
+				.requestFactory(new HttpComponentsClientHttpRequestFactory(
+						HttpClients.custom()
+								.setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
+										.setSSLSocketFactory(SSLConnectionSocketFactoryBuilder.create()
+												.setSslContext(createInsecureSslContext())
+												.setHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+												.build())
+										.build())
+								.build()));
+	}
+
+	private SSLContext createInsecureSslContext() {
+		try {
+			return org.apache.hc.core5.ssl.SSLContexts.custom()
+					.loadTrustMaterial(null, (chain, authType) -> true)
+					.build();
+		} catch (Exception e) {
+			throw new RuntimeException("Greška pri kreiranju SSL konteksta", e);
+		}
+	}
+
+
 }

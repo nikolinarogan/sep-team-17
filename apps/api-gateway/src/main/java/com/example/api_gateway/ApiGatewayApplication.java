@@ -61,7 +61,6 @@ public class ApiGatewayApplication {
     @Bean
     public RestClient.Builder restClientBuilder() {
         try {
-            // Kreiramo TrustManager koji veruje svim sertifikatima
             javax.net.ssl.TrustManager[] trustAllCerts = new javax.net.ssl.TrustManager[]{
                     new javax.net.ssl.X509TrustManager() {
                         public java.security.cert.X509Certificate[] getAcceptedIssuers() {
