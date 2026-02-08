@@ -8,6 +8,7 @@ import com.ws.backend.model.AppUser;
 import com.ws.backend.model.Role;
 import com.ws.backend.repository.UserRepository;
 import com.ws.backend.service.AuthService;
+import com.ws.backend.service.LoginAttemptService;
 import com.ws.backend.service.SessionActivityService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,12 +24,15 @@ public class AuthController {
     private final AuthService userService;
     private final UserRepository userRepository;
     private final SessionActivityService sessionActivityService;
+    private final LoginAttemptService loginAttemptService;
 
-
-    public AuthController(AuthService userService, UserRepository userRepository, SessionActivityService sessionActivityService) {
+    public AuthController(AuthService userService, UserRepository userRepository,
+                          SessionActivityService sessionActivityService,
+                          LoginAttemptService loginAttemptService) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.sessionActivityService = sessionActivityService;
+        this.loginAttemptService = loginAttemptService;
     }
 
     @PostMapping("/register")
@@ -58,13 +62,27 @@ public class AuthController {
     }
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginDTO request) {
+        String email = request.getEmail();
+        if (email != null && !email.isBlank()) {
+            if (loginAttemptService.isLockedOut(email)) {
+                long remaining = loginAttemptService.getRemainingLockoutMinutes(email);
+                return ResponseEntity.status(429)
+                        .body(new LoginResponseDTO("Prijava onemogućena. Previše neuspešnih pokušaja. Pokušajte ponovo za " + remaining + " minuta.", null, false));
+            }
+        }
 
         AppUser user = userService.loginCheckCredentials(request.getEmail(), request.getPassword());
 
         if (user == null) {
+            if (email != null && !email.isBlank()) {
+                loginAttemptService.recordFailedAttempt(email);
+            }
             return ResponseEntity.badRequest()
                     .body(new LoginResponseDTO("Invalid email or password", null, false));
         }
+
+        loginAttemptService.clearAttempts(email);
+
         if (user.isActive() == false) {
             return ResponseEntity.badRequest()
                     .body(new LoginResponseDTO("User account has been deactivated!", null, false));

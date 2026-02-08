@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import repository.MerchantRepository;
+import service.LoginAttemptService;
 import service.MerchantService;
 import service.SessionActivityService;
 import tools.AuditLogger;
@@ -34,6 +35,7 @@ public class AdminController {
     private final AuditLogger auditLogger;
     private final JwtService jwtService;
     private final SessionActivityService sessionActivityService;
+    private final LoginAttemptService loginAttemptService;
 
     public AdminController(AdminRepository adminRepository,
                            MerchantRepository merchantRepository,
@@ -41,7 +43,8 @@ public class AdminController {
                            PasswordEncoder passwordEncoder,
                            AuditLogger auditLogger,
                            JwtService jwtService,
-                           SessionActivityService sessionActivityService) {
+                           SessionActivityService sessionActivityService,
+                           LoginAttemptService loginAttemptService) {
         this.adminRepository = adminRepository;
         this.merchantRepository = merchantRepository;
         this.merchantService = merchantService;
@@ -49,22 +52,40 @@ public class AdminController {
         this.auditLogger = auditLogger;
         this.jwtService = jwtService;
         this.sessionActivityService = sessionActivityService;
+        this.loginAttemptService = loginAttemptService;
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO request) {
-        auditLogger.logEvent("ADMIN_LOGIN_ATTEMPT", "PENDING", "Username: " + request.getUsername());
+        String username = request.getUsername();
+        auditLogger.logEvent("ADMIN_LOGIN_ATTEMPT", "PENDING", "Username: " + username);
 
-        Admin admin = adminRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> {
-                    auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "User not found: " + request.getUsername());
-                    return new RuntimeException("Korisnik ne postoji.");
-                });
+        if (username != null && !username.isBlank()) {
+            if (loginAttemptService.isLockedOut(username)) {
+                long remaining = loginAttemptService.getRemainingLockoutMinutes(username);
+                auditLogger.logSecurityAlert("ADMIN_LOGIN_LOCKED", "Lockout: " + username + " (" + remaining + " min)");
+                return ResponseEntity.status(429).body(
+                        "Prijava onemogućena. Previše neuspešnih pokušaja. Pokušajte ponovo za " + remaining + " minuta.");
+            }
+        }
+
+        Admin admin = adminRepository.findByUsername(username).orElse(null);
+
+        if (admin == null) {
+            if (username != null && !username.isBlank()) {
+                loginAttemptService.recordFailedAttempt(username);
+            }
+            auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "User not found: " + username);
+            return ResponseEntity.status(401).body("Pogrešno korisničko ime ili lozinka.");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
-            auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Invalid password for user: " + request.getUsername());
+            loginAttemptService.recordFailedAttempt(username);
+            auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Invalid password for user: " + username);
             return ResponseEntity.status(401).body("Pogrešna lozinka.");
         }
+
+        loginAttemptService.clearAttempts(username);
         if (admin.isActive() == false) {
             auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Deactivated account for user: " + request.getUsername());
             return ResponseEntity.status(401).body("Nalog ovog korisnika je deaktiviran.");

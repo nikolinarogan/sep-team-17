@@ -62,6 +62,8 @@ export class AdminLogin implements OnInit {
       this.isLoading = false;
       if (err.status === 401) {
         this.errorMessage = 'Pogrešno korisničko ime ili lozinka.';
+      } else if (err.status === 429) {
+        this.errorMessage = typeof err.error === 'string' ? err.error : 'Prijava onemogućena. Previše neuspešnih pokušaja. Pokušajte ponovo za 30 minuta.';
       } else {
         this.errorMessage = 'Sistem nije dostupan.';
       }
