@@ -113,7 +113,7 @@ selectMethod(method: PaymentMethod) {
       }
     });
   }
-  3
+  
 
   onScanSuccess(scannedText: string) {
     console.log("Kamera je pročitala:", scannedText);

@@ -37,16 +37,16 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // JAVNE RUTE
+                        // JAVNE RUTE (bez tokena)
                         .requestMatchers("/api/admin/login").permitAll()
                         .requestMatchers("/api/payments/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/payment-methods").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ZAŠTIĆENE RUTE
-                        .requestMatchers("/api/merchants/**").permitAll()
-                        .requestMatchers("/api/admin/**").permitAll()
-                        .requestMatchers("/api/payment-methods/**").permitAll()
+                        // ZAŠTIĆENE RUTE (zahtevaju JWT)
+                        .requestMatchers("/api/admin/**").authenticated()
+                        .requestMatchers("/api/merchants/**").authenticated()
+                        .requestMatchers("/api/payment-methods/**").authenticated()
 
                         .anyRequest().authenticated()
                 )

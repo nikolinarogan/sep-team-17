@@ -29,17 +29,15 @@ public class Admin {
     @Column(name = "last_name")
     private String lastName;
 
-//    @Enumerated(EnumType.STRING)
-//    @Column(nullable = false)
-//    private AdminRole role;
-
     @Column(nullable = false)
     private boolean active = true;
 
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = true)
-    private String role = "ADMIN";
+    private AdminRole role;
 
     @Column(nullable = true)
     private Boolean hasChangedPassword = true;
