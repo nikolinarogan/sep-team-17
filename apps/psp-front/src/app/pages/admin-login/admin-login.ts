@@ -42,7 +42,15 @@ export class AdminLogin implements OnInit {
 
   this.authService.login(this.credentials).subscribe({
     next: (response) => {
-      if (response.token) {
+      if (response.mustChangePassword) {
+        this.isLoading = false;
+        this.router.navigate(['/admin/change-password'], {
+          queryParams: {
+            username: this.credentials.username,
+            firstTime: 'true'
+          }
+        });
+      } else if (response.token) {
         console.log('Login uspešan, token sačuvan.');
         this.router.navigate(['/admin/dashboard']);
       } else {

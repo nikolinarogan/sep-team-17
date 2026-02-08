@@ -1,5 +1,6 @@
 package controller;
 
+import dto.ChangePasswordDTO;
 import dto.LoginRequestDTO;
 import dto.MerchantConfigDTO;
 import model.Admin;
@@ -16,6 +17,7 @@ import service.MerchantService;
 import service.SessionActivityService;
 import tools.AuditLogger;
 
+import java.util.HashMap;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -67,17 +69,26 @@ public class AdminController {
             auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Deactivated account for user: " + request.getUsername());
             return ResponseEntity.status(401).body("Nalog ovog korisnika je deaktiviran.");
         }
+
+        // Prvi login – mora da promeni lozinku
+        if (Boolean.FALSE.equals(admin.getHasChangedPassword())) {
+            auditLogger.logEvent("ADMIN_FIRST_LOGIN", "MUST_CHANGE_PASSWORD", "User: " + request.getUsername());
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Morate promeniti lozinku pri prvom prijavljivanju.");
+            response.put("token", null);
+            response.put("mustChangePassword", true);
+            return ResponseEntity.ok(response);
+        }
+
         admin.setLastLoginAt(LocalDateTime.now());
         adminRepository.save(admin);
 
         sessionActivityService.updateActivity(admin.getId());
 
-        // GENERIŠEMO TOKEN KAO NA WEB SHOPU
         String token = jwtService.generateToken(admin);
 
         auditLogger.logEvent("ADMIN_LOGIN_SUCCESS", "SUCCESS", "User: " + request.getUsername());
 
-        // Vraćamo mapu ili DTO sa tokenom
         return ResponseEntity.ok(Map.of(
                 "message", "Uspešna prijava.",
                 "token", token
@@ -100,6 +111,45 @@ public class AdminController {
         merchantService.updateServicesByAdmin(id, configs);
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_SUCCESS", "SUCCESS", "Configuration changed for merchant: " + id);
         return ResponseEntity.ok("Servisi uspješno ažurirani.");
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO dto) {
+        auditLogger.logEvent("ADMIN_CHANGE_PASSWORD_ATTEMPT", "PENDING", "Username: " + dto.getUsername());
+
+        Admin admin = adminRepository.findByUsername(dto.getUsername())
+                .orElseThrow(() -> {
+                    auditLogger.logSecurityAlert("CHANGE_PASSWORD_FAILED", "Admin not found: " + dto.getUsername());
+                    return new IllegalArgumentException("Korisnik nije pronađen.");
+                });
+
+        boolean isFirstTime = Boolean.FALSE.equals(admin.getHasChangedPassword());
+
+        if (!isFirstTime) {
+            if (dto.getOldPassword() == null || dto.getOldPassword().isBlank()) {
+                return ResponseEntity.badRequest().body("Trenutna lozinka je obavezna.");
+            }
+            if (!passwordEncoder.matches(dto.getOldPassword(), admin.getPassword())) {
+                auditLogger.logSecurityAlert("CHANGE_PASSWORD_FAILED", "Wrong old password: " + dto.getUsername());
+                return ResponseEntity.badRequest().body("Trenutna lozinka nije ispravna.");
+            }
+        }
+
+        if (dto.getNewPassword() == null || dto.getNewPassword().length() < 8) {
+            return ResponseEntity.badRequest().body("Nova lozinka mora imati najmanje 8 karaktera.");
+        }
+
+        if (passwordEncoder.matches(dto.getNewPassword(), admin.getPassword())) {
+            return ResponseEntity.badRequest().body("Nova lozinka ne sme biti ista kao prethodna.");
+        }
+
+        admin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        admin.setHasChangedPassword(true);
+        adminRepository.save(admin);
+
+        auditLogger.logEvent("ADMIN_CHANGE_PASSWORD_SUCCESS", "SUCCESS", "User: " + dto.getUsername());
+
+        return ResponseEntity.ok(Map.of("message", "Lozinka uspešno promenjena. Prijavite se ponovo."));
     }
 
     @PutMapping("/{id}/deactivate")
