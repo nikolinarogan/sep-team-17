@@ -2,6 +2,7 @@ package controller;
 
 import dto.PaymentMethodRequestDTO;
 import model.PaymentMethod;
+import org.springframework.security.access.prepost.PreAuthorize;
 import repository.PaymentMethodRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
