@@ -41,7 +41,11 @@ eureka:
       defaultZone: https://${eureka.instance.hostname}:8761/eureka/
     disable-delta: true
     eureka-server-u-r-l-context: eureka
-
+    tls:
+      enabled: true
+      trust-store: classpath:truststore.jks
+      trust-store-password: ${KEY_STORE_PASSWORD}
+      trust-store-type: PKCS12
 logging:
   level:
     org.springframework.cloud.gateway: TRACE

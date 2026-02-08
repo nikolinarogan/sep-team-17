@@ -1,19 +1,19 @@
 package com.ws.backend.tools;
 
-
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Component
-@Slf4j
 public class AuditLogger {
+
+    private static final Logger log = LoggerFactory.getLogger(AuditLogger.class);
 
     public void logEvent(String action, String status, String details) {
         String ipAddress = getClientIp();
-        // PCI DSS format: [TIMESTAMP] | ACTION | STATUS | IP | DETAILS
         log.info("[AUDIT] Action: {} | Status: {} | IP: {} | Details: {}",
                 action, status, ipAddress, details);
     }
@@ -34,6 +34,6 @@ public class AuditLogger {
             }
             return request.getRemoteAddr();
         }
-        return "SYSTEM"; // Za @Scheduled taskove koji nemaju HTTP zahtev
+        return "SYSTEM"; // za @Scheduled taskove koji nemaju HTTP zahtev
     }
 }
