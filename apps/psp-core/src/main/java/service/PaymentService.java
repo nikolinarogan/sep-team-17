@@ -2,6 +2,7 @@ package service;
 
 import dto.*;
 import model.*;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,7 +10,8 @@ import org.springframework.web.client.RestTemplate;
 import repository.MerchantRepository;
 import repository.MerchantSubscriptionRepository;
 import repository.PaymentTransactionRepository;
-import repository.PspConfigRepository; // Novi import
+import repository.PspConfigRepository;
+import tools.AuditLogger; // Dodato
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,43 +27,44 @@ public class PaymentService {
     private final PspConfigRepository pspConfigRepository;
     private final PasswordEncoder passwordEncoder;
     private final RestTemplate restTemplate;
+    private final AuditLogger auditLogger; // Dodato
 
-    // Constructor Injection
     public PaymentService(MerchantRepository merchantRepository,
                           PaymentTransactionRepository transactionRepository,
                           MerchantSubscriptionRepository subscriptionRepository,
                           PspConfigRepository pspConfigRepository,
                           PasswordEncoder passwordEncoder,
-                          RestTemplate restTemplate) {
+                          RestTemplate restTemplate,
+                          AuditLogger auditLogger) {
         this.merchantRepository = merchantRepository;
         this.transactionRepository = transactionRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.pspConfigRepository = pspConfigRepository;
         this.passwordEncoder = passwordEncoder;
         this.restTemplate = restTemplate;
+        this.auditLogger = auditLogger;
     }
 
-    /**
-     * Kreiranje transakcije (inicijalizacija)
-     */
     @Transactional
     public PaymentResponseDTO createTransaction(PaymentRequestDTO request) {
+        auditLogger.logEvent("TRANSACTION_INIT_ATTEMPT", "PENDING", "Merchant: " + request.getMerchantId());
 
-        // 1. Validacija prodavca
         Merchant merchant = merchantRepository.findByMerchantId(request.getMerchantId())
-                .orElseThrow(() -> new RuntimeException("Prodavac sa ID-jem " + request.getMerchantId() + " ne postoji."));
+                .orElseThrow(() -> {
+                    auditLogger.logSecurityAlert("INVALID_MERCHANT", "Merchant not found: " + request.getMerchantId());
+                    return new RuntimeException("Prodavac sa ID-jem " + request.getMerchantId() + " ne postoji.");
+                });
 
-        // 2. Provjera lozinke
         if (!passwordEncoder.matches(request.getMerchantPassword(), merchant.getMerchantPassword())) {
+            auditLogger.logSecurityAlert("AUTH_FAILED", "Invalid password for merchant: " + request.getMerchantId());
             throw new RuntimeException("Pogrešna lozinka za prodavca.");
         }
 
-        // 3. Sprečavanje dvostrukog plaćanja
         if (transactionRepository.existsByMerchantIdAndMerchantOrderId(request.getMerchantId(), request.getMerchantOrderId())) {
+            auditLogger.logEvent("DUPLICATE_ORDER", "REJECTED", "Order ID exists: " + request.getMerchantOrderId());
             throw new RuntimeException("Transakcija sa Order ID: " + request.getMerchantOrderId() + " već postoji!");
         }
 
-        // 4. Kreiranje entiteta transakcije
         PaymentTransaction tx = new PaymentTransaction();
         tx.setUuid(UUID.randomUUID().toString());
         tx.setMerchantId(request.getMerchantId());
@@ -70,239 +73,155 @@ public class PaymentService {
         tx.setCurrency(request.getCurrency());
         tx.setMerchantTimestamp(request.getMerchantTimestamp());
         tx.setStatus(TransactionStatus.CREATED);
-
-        // URL-ovi na koje se korisnik vraća
         tx.setSuccessUrl(request.getSuccessUrl());
         tx.setFailedUrl(request.getFailedUrl());
         tx.setErrorUrl(request.getErrorUrl());
 
         transactionRepository.save(tx);
-
-        System.out.println("Nova transakcija kreirana: " + tx.getUuid());
+        auditLogger.logEvent("TRANSACTION_CREATED", "SUCCESS", "UUID: " + tx.getUuid());
 
         String urlTemplate = pspConfigRepository.findByConfigName("PAYMENT_LINK_TEMPLATE")
                 .map(PspConfig::getConfigValue)
                 .orElseThrow(() -> new RuntimeException("Sistemska greška: Nedostaje PAYMENT_LINK_TEMPLATE konfiguracija!"));
 
-        String fullUrl = urlTemplate.replace("{uuid}", tx.getUuid());
-
-        return new PaymentResponseDTO(fullUrl, tx.getUuid());
+        return new PaymentResponseDTO(urlTemplate.replace("{uuid}", tx.getUuid()), tx.getUuid());
     }
 
-    /**
-     * Dobavljanje podataka za Checkout stranu
-     */
-    /**
-     * Dobavljanje podataka za Checkout stranu
-     * IZMENA: Sada tražimo i po Bankinom ID-u (executionId) i ne pucamo ako je status SUCCESS
-     */
     public CheckoutResponseDTO getCheckoutData(String uuid) {
-        // 1. Prvo probaj da nađeš po našem UUID-u
-        PaymentTransaction tx = transactionRepository.findByUuid(uuid)
-                // 2. Ako ne nađeš, probaj po Bankinom ID-u (executionId)
-                .or(() -> transactionRepository.findByExecutionId(uuid))
-                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena: " + uuid));
+        auditLogger.logEvent("CHECKOUT_DATA_ACCESS", "SUCCESS", "UUID: " + uuid);
 
-        if (tx.getMerchantTimestamp().plusMinutes(30).isBefore(LocalDateTime.now())) {
-            if (tx.getStatus() == TransactionStatus.CREATED) {
-                tx.setStatus(TransactionStatus.FAILED);
-                transactionRepository.save(tx);
-            }
-            throw new RuntimeException("Link za plaćanje je istekao! (Maksimalno vreme: 30 min)");
-        }
-        // 3. Olabavili smo proveru. Ako je status SUCCESS, samo ćemo to i vratiti frontendu,
-        // umesto da bacimo grešku. Frontend će znati šta s tim.
-        /*
-        if (tx.getStatus() != TransactionStatus.CREATED) {
-            throw new RuntimeException("Ova transakcija je već obrađena ili nije validna.");
-        }
-        */
+        PaymentTransaction tx = transactionRepository.findByUuid(uuid)
+                .or(() -> transactionRepository.findByExecutionId(uuid))
+                .orElseThrow(() -> {
+                    auditLogger.logSecurityAlert("CHECKOUT_NOT_FOUND", "UUID: " + uuid);
+                    return new RuntimeException("Transakcija nije pronađena: " + uuid);
+                });
 
         List<MerchantSubscription> subscriptions = subscriptionRepository.findByMerchantMerchantId(tx.getMerchantId());
 
-        if (subscriptions.isEmpty()) {
-            throw new RuntimeException("Prodavac nema aktivnih metoda plaćanja!");
-        }
-
         List<PaymentMethodDTO> availableMethods = subscriptions.stream()
-                .map(sub -> new PaymentMethodDTO(
-                        sub.getPaymentMethod().getName(),
-                        sub.getPaymentMethod().getServiceUrl()
-                ))
+                .map(sub -> new PaymentMethodDTO(sub.getPaymentMethod().getName(), sub.getPaymentMethod().getServiceUrl()))
                 .collect(Collectors.toList());
 
-        return new CheckoutResponseDTO(
-                tx.getAmount(),
-                tx.getCurrency(),
-                tx.getMerchantId(),
-                availableMethods
-        );
+        return new CheckoutResponseDTO(tx.getAmount(), tx.getCurrency(), tx.getMerchantId(), availableMethods);
     }
-    /**
-     * Finalizacija transakcije
-     */
-   /* @Transactional
-    public void finaliseTransaction(dto.PaymentCallbackDTO callback) {
-        // 1. Pronađi transakciju u bazi
-        PaymentTransaction tx = transactionRepository.findByUuid(callback.getPaymentId())
-                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena."));
 
-        // 2. Parsiraj i postavi novi status
-        try {
-            TransactionStatus newStatus = TransactionStatus.valueOf(callback.getStatus());
-            tx.setStatus(newStatus);
-        } catch (Exception e) {
-            // Ako stigne nepoznat status, stavi ERROR
-            tx.setStatus(TransactionStatus.ERROR);
-        }
-
-        // 3. Sačuvaj bitne podatke iz banke/servisa (STAN, Global ID)
-        tx.setExternalTransactionId(callback.getExternalTransactionId());
-        tx.setExecutionId(callback.getExecutionId());
-        tx.setServiceTimestamp(callback.getServiceTimestamp());
-
-        // 4. Snimi promjene
-        transactionRepository.save(tx);
-
-
-
-        // MARO, OVAKO NESTO TREBA DA ODRADIS, DA BI MI POSLALA OVAJ DTO. POGLEDAJ KAKO SAM U SHOPU NAPRAVILA OVAJ REST ZA KOMUNIKACIJU
-        // MOZES ISKORISITI ISTI, SAMO DODAJ SVE ONO ZA SERTIFIKATE....
-// u bazi cuvaj ono za url za bekend napisala sam negdje u komentaru u modelu
-
-//        String callbackUrl;
-//        if (tx.getStatus() == TransactionStatus.SUCCESS) {
-//            callbackUrl = tx.getSuccessUrl();
-//        } else if (tx.getStatus() == TransactionStatus.FAILED ||
-//                tx.getStatus() == TransactionStatus.INSUFFICIENT_FUNDS) {
-//            callbackUrl = tx.getFailedUrl();
-//        } else {
-//            callbackUrl = tx.getErrorUrl();
-//        }
-//
-//// Kreiraj DTO sa podacima ii treba mi paymentMethod
-//        PaymentStatusDTO statusDTO = new PaymentStatusDTO();
-//        statusDTO.setMerchantOrderId(tx.getMerchantOrderId());
-//        statusDTO.setPspTransactionId(tx.getUuid());
-//        statusDTO.setStatus(tx.getStatus().toString());
-//        statusDTO.setTimestamp(LocalDateTime.now());
-//
-//// Pozovi web shop API
-//        restTemplate.postForEntity(callbackUrl, statusDTO, Void.class);
-        // 3 urla koja sam ti poslala u dto su linkovi od stranica web shopa na frontu. Ili ih vrati sebi na fe pa tamo preusmjeri
-        // ili vrati 3xx status sa linkom, ovaj kod iznad provjeri nisam sihurna
-// O
-        System.out.println("Transakcija " + tx.getUuid() + " finalizovana sa statusom: " + tx.getStatus());
-    }*/
     @Transactional
     public String finaliseTransaction(dto.PaymentCallbackDTO callback, String paymentMethod) {
+        auditLogger.logEvent("FINALISING_TRANSACTION", "START", "UUID: " + callback.getPaymentId());
 
-        // 1. Pronađi transakciju
         PaymentTransaction tx = transactionRepository.findByUuid(callback.getPaymentId())
                 .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena."));
 
-        // 2. Ažuriraj status
+        TransactionStatus oldStatus = tx.getStatus();
         try {
-            TransactionStatus newStatus = TransactionStatus.valueOf(callback.getStatus());
-            tx.setStatus(newStatus);
+            tx.setStatus(TransactionStatus.valueOf(callback.getStatus()));
         } catch (Exception e) {
             tx.setStatus(TransactionStatus.ERROR);
         }
 
-        // Čuvamo podatke od banke/servisa
         tx.setExternalTransactionId(callback.getExternalTransactionId());
         tx.setExecutionId(callback.getExecutionId());
         tx.setServiceTimestamp(callback.getServiceTimestamp());
+        tx.setChosenMethod(paymentMethod);
 
         transactionRepository.save(tx);
+        auditLogger.logEvent("STATUS_UPDATE", tx.getStatus().toString(), "Old: " + oldStatus + " | UUID: " + tx.getUuid());
 
-        // 3. OBAVESTI WEB SHOP (Webhook)
         try {
             notifyWebShop(tx, paymentMethod);
         } catch (Exception e) {
-            System.err.println("GRESKA: Nismo uspeli da obavestimo Web Shop: " + e.getMessage());
-            // Nastavljamo dalje, ne rušimo redirect zbog ovoga
+            auditLogger.logEvent("WEBHOOK_NOTIFICATION_FAILED", "ERROR", "UUID: " + tx.getUuid());
         }
 
-        // 4. Vrati URL za redirect korisnika (Frontend)
-        if (tx.getStatus() == TransactionStatus.SUCCESS) {
-            return tx.getSuccessUrl();
-        } else if (tx.getStatus() == TransactionStatus.FAILED) {
-            return tx.getFailedUrl();
-        } else {
-            return tx.getErrorUrl();
-        }
+        return (tx.getStatus() == TransactionStatus.SUCCESS) ? tx.getSuccessUrl() : tx.getFailedUrl();
     }
 
-    // Pomoćna metoda za slanje na Web Shop
     private void notifyWebShop(PaymentTransaction tx, String paymentMethod) {
-        Merchant merchant = merchantRepository.findByMerchantId(tx.getMerchantId())
-                .orElseThrow(() -> new RuntimeException("Prodavac ne postoji"));
+        Merchant merchant = merchantRepository.findByMerchantId(tx.getMerchantId()).orElseThrow();
+        String targetUrl = tx.getStatus() == TransactionStatus.SUCCESS ? merchant.getWebShopUrl() + "/success" : merchant.getWebShopUrl() + "/failed";
 
-        String baseWebhookUrl = merchant.getWebShopUrl();
-        String targetUrl;
+        PaymentStatusDTO statusDTO = new PaymentStatusDTO(tx.getMerchantOrderId(), tx.getUuid(), paymentMethod, tx.getStatus().toString(), LocalDateTime.now());
 
-        if (tx.getStatus() == TransactionStatus.SUCCESS) {
-            targetUrl = baseWebhookUrl + "/success";
-        } else if (tx.getStatus() == TransactionStatus.FAILED) {
-            targetUrl = baseWebhookUrl + "/failed";
-        } else {
-            targetUrl = baseWebhookUrl + "/error";
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                auditLogger.logEvent("WEBHOOK_SENDING", "ATTEMPT_" + attempt, "OrderID: " + tx.getMerchantOrderId());
+                restTemplate.postForEntity(targetUrl, statusDTO, Void.class);
+                auditLogger.logEvent("WEBHOOK_SENT", "SUCCESS", "OrderID: " + tx.getMerchantOrderId());
+                return;
+            } catch (Exception e) {
+                if (attempt == maxRetries) {
+                    auditLogger.logSecurityAlert("WEBHOOK_PERMANENT_FAIL", "OrderID: " + tx.getMerchantOrderId());
+                }
+            }
         }
-
-        // Pakujemo podatke
-        PaymentStatusDTO statusDTO = new PaymentStatusDTO(
-                tx.getMerchantOrderId(),
-                tx.getUuid(),
-                paymentMethod,
-                tx.getStatus().toString(),
-                LocalDateTime.now()
-        );
-
-        System.out.println("Saljem notifikaciju na: " + targetUrl);
-        restTemplate.postForEntity(targetUrl, statusDTO, Void.class);
     }
 
-    /**
-     * Prima ID i STATUS od banke.
-     */
     public String getRedirectUrl(String bankPaymentId, String statusFromBank) {
+        auditLogger.logEvent("BANK_REDIRECT_PROCESS", "START", "BankID: " + bankPaymentId);
 
-        // 1. Nađi transakciju
         PaymentTransaction tx = transactionRepository.findByExecutionId(bankPaymentId)
                 .or(() -> transactionRepository.findByUuid(bankPaymentId))
                 .orElseThrow(() -> new RuntimeException("Nepoznata transakcija: " + bankPaymentId));
-        System.out.println("Status je: " + statusFromBank);
-        System.out.println("Šaljem korisnika na: " + (statusFromBank.equals("SUCCESS") ? tx.getSuccessUrl() : tx.getFailedUrl()));
-        // 2. Proveri šta kaže Banka
-        if ("SUCCESS".equalsIgnoreCase(statusFromBank)) {
 
+        if ("SUCCESS".equalsIgnoreCase(statusFromBank)) {
             if (tx.getStatus() != TransactionStatus.SUCCESS) {
-                System.out.println("--- BANKA KAŽE SUCCESS -> ODOBRAVAM TRANSAKCIJU ---");
                 tx.setStatus(TransactionStatus.SUCCESS);
                 transactionRepository.save(tx);
-
-                // Javljamo Web Shopu
-                try {
-                    notifyWebShop(tx, "CARD");
-                } catch (Exception e) {
-                    System.err.println("Greska pri javljanju shopu: " + e.getMessage());
-                }
+                auditLogger.logEvent("BANK_STATUS_UPDATE", "SUCCESS", "UUID: " + tx.getUuid());
+                try { notifyWebShop(tx, "CARD"); } catch (Exception e) {}
             }
             return tx.getSuccessUrl();
-
         } else {
-            // Ako banka kaže FAILED ili bilo šta drugo
-            System.out.println("--- BANKA KAŽE FAILED -> ODBIJAM TRANSAKCIJU ---");
             tx.setStatus(TransactionStatus.FAILED);
             transactionRepository.save(tx);
-
-            // I ovo javljamo shopu (da znaju da je propalo)
-            try {
-                notifyWebShop(tx, "CARD");
-            } catch (Exception e) {}
-
+            auditLogger.logEvent("BANK_STATUS_UPDATE", "FAILED", "UUID: " + tx.getUuid());
+            try { notifyWebShop(tx, "CARD"); } catch (Exception e) {}
             return tx.getFailedUrl();
+        }
+    }
+
+    public PaymentStatusDTO checkTransactionStatus(String merchantId, String merchantOrderId) {
+        auditLogger.logEvent("STATUS_POLLING", "SUCCESS", "Merchant: " + merchantId + " | Order: " + merchantOrderId);
+        PaymentTransaction tx = transactionRepository.findByMerchantIdAndMerchantOrderId(merchantId, merchantOrderId)
+                .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
+
+        return new PaymentStatusDTO(tx.getMerchantOrderId(), tx.getUuid(), tx.getChosenMethod() != null ? tx.getChosenMethod() : "Unknown", tx.getStatus().toString(), LocalDateTime.now());
+    }
+
+    @Scheduled(fixedRate = 600000)
+    @Transactional
+    public void expireAbandonedTransactions() {
+        LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
+        List<PaymentTransaction> abandoned = transactionRepository.findByStatusAndCreatedAtBefore(TransactionStatus.CREATED, thirtyMinutesAgo);
+
+        if(!abandoned.isEmpty()) {
+            auditLogger.logEvent("CRON_EXPIRATION", "START", "Count: " + abandoned.size());
+            for (PaymentTransaction tx : abandoned) {
+                tx.setStatus(TransactionStatus.FAILED);
+                transactionRepository.save(tx);
+                auditLogger.logEvent("AUTO_EXPIRE", "FAILED", "UUID: " + tx.getUuid());
+                try { notifyWebShop(tx, "UNKNOWN"); } catch (Exception e) {}
+            }
+        }
+    }
+
+    @Transactional
+    public void cancelTransactionByMerchant(String merchantId, String merchantPassword, String merchantOrderId) {
+        auditLogger.logEvent("MERCHANT_CANCEL", "START", "Order: " + merchantOrderId);
+
+        Merchant merchant = merchantRepository.findByMerchantId(merchantId).orElseThrow();
+        if (!passwordEncoder.matches(merchantPassword, merchant.getMerchantPassword())) {
+            auditLogger.logSecurityAlert("CANCEL_AUTH_FAIL", "Merchant: " + merchantId);
+            throw new RuntimeException("Pogrešna lozinka.");
+        }
+
+        PaymentTransaction tx = transactionRepository.findByMerchantIdAndMerchantOrderId(merchantId, merchantOrderId).orElseThrow();
+        if (tx.getStatus() == TransactionStatus.CREATED) {
+            tx.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(tx);
+            auditLogger.logEvent("CANCEL_SUCCESS", "SUCCESS", "UUID: " + tx.getUuid());
         }
     }
 }

@@ -13,6 +13,7 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 import javax.net.ssl.SSLContext;
+import java.time.Duration;
 
 @Configuration
 public class RestTemplateConfig {
@@ -45,6 +46,10 @@ public class RestTemplateConfig {
         HttpComponentsClientHttpRequestFactory requestFactory =
                 new HttpComponentsClientHttpRequestFactory();
         requestFactory.setHttpClient(httpClient);
+
+        // Timeout da pozivi ka banci/PayPal-u ne blokiraju beskonačno
+        requestFactory.setConnectionRequestTimeout(Duration.ofSeconds(15));  // Maksimalno 15s za uspostavljanje konekcije
+        requestFactory.setReadTimeout(Duration.ofSeconds(25));     // Maksimalno 25s čekanja odgovora
 
         return new RestTemplate(requestFactory);
     }

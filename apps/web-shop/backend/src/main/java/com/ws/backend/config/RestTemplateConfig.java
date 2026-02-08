@@ -25,7 +25,7 @@ public class RestTemplateConfig {
     @Value("${server.ssl.trust-store-password}")
     private String trustStorePassword;
 
-    @Bean
+    /*@Bean
     public RestTemplate restTemplate() throws Exception {
         // 1. Kreiramo SSLContext koji veruje
         SSLContext sslContext = SSLContexts.custom()
@@ -49,5 +49,31 @@ public class RestTemplateConfig {
         // 4. Ubacujemo klijenta u RestTemplate
         return new RestTemplate(new HttpComponentsClientHttpRequestFactory(httpClient));
 
+    }*/
+    @Bean
+    public RestTemplate restTemplate() throws Exception {
+        // 1. SSL Context (Ovo ti je dobro)
+        SSLContext sslContext = SSLContexts.custom()
+                .loadTrustMaterial(null, TrustAllStrategy.INSTANCE)
+                .build();
+
+        // 2. HttpClient sa eksplicitnim forsiranjem HTTP/1.1
+        CloseableHttpClient httpClient = HttpClients.custom()
+                .setConnectionManager(PoolingHttpClientConnectionManagerBuilder.create()
+                        .setSSLSocketFactory(SSLConnectionSocketFactoryBuilder.create()
+                                .setSslContext(sslContext)
+                                .setHostnameVerifier((hostname, session) -> true)
+                                .build())
+                        .build())
+                // DODAJ OVO: Forsiraj HTTP/1.1 da izbegneš chunked/h2 probleme sa Gateway-om
+                .setConnectionReuseStrategy((request, response, context) -> true)
+                .build();
+
+        // 3. Postavi request factory
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+
+
+
+        return new RestTemplate(factory);
     }
 }

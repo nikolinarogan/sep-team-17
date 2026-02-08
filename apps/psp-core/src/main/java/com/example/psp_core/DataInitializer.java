@@ -82,7 +82,7 @@ public class DataInitializer implements CommandLineRunner {
         if (merchantRepository.count() == 0) {
             Merchant m = new Merchant();
             m.setName("Rent A Car Demo");
-            m.setWebShopUrl("https://localhost:4200");
+            m.setWebShopUrl("https://localhost:8080/api/payment/callback");
             m.setMerchantId("shop_123");
 
             m.setMerchantPassword(passwordEncoder.encode("shop_pass"));

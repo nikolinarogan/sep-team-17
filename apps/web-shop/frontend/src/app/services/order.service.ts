@@ -22,5 +22,8 @@ export class OrderService {
   getUserOrders(): Observable<Order[]> {
     return this.http.get<Order[]>(this.apiUrl);
   }
+  getOrderStatus(merchantOrderId: string): Observable<any> {
+  return this.http.get(`${this.apiUrl}/status?merchantOrderId=${merchantOrderId}`);
+}
 }
 

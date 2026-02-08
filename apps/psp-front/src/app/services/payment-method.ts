@@ -6,7 +6,7 @@ import { Observable } from 'rxjs';
   providedIn: 'root',
 })
 export class PaymentMethod {
-  private apiUrl = 'https://localhost:8443/api/payment-methods';
+  private apiUrl = 'https://localhost:8000/api/payment-methods';
 
   constructor(private http: HttpClient) { }
 

@@ -43,7 +43,24 @@ export class PaymentSuccessComponent implements OnInit {
     // Pretpostavljamo da imaš endpoint za dobijanje narudžbine po merchantOrderId
     // Za sada samo prikazujemo success poruku
     // Možeš dodati poziv API-ja ako imaš endpoint
+    // this.isLoading = false;
+    if (!this.orderId) {
     this.isLoading = false;
+    return;
+  }
+
+  this.orderService.getOrderStatus(this.orderId).subscribe({
+    next: (data) => {
+      if (data.orderStatus !== 'CONFIRMED') {
+        this.errorMessage = `Status: ${data.orderStatus}. Proverite istoriju narudžbina.`;
+      }
+      this.isLoading = false;
+    },
+    error: () => {
+      this.errorMessage = 'Greška pri proveri statusa.';
+      this.isLoading = false;
+    }
+  });
   }
 
   goToServices() {

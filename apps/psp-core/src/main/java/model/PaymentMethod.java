@@ -18,4 +18,7 @@ public class PaymentMethod {
 
     @Column(name = "service_url", nullable = false)
     private String serviceUrl;
+
+    @Column(name = "service_name")
+    private String serviceName;
 }

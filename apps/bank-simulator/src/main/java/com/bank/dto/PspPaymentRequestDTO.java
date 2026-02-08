@@ -13,4 +13,5 @@ public class PspPaymentRequestDTO {
     private String pspTransactionId; // STAN ili ID iz PSP-a
     private LocalDateTime pspTimestamp;
     private String stan;
+    private String callbackUrl;
 }
