@@ -50,6 +50,11 @@ export class AdminLogin implements OnInit {
             firstTime: 'true'
           }
         });
+      } else if (response.status === 'MFA_REQUIRED') {
+        this.isLoading = false;
+        this.router.navigate(['/admin/mfa'], {
+          queryParams: { username: response.username }
+        });
       } else if (response.token) {
         console.log('Login uspešan, token sačuvan.');
         this.router.navigate(['/admin/dashboard']);

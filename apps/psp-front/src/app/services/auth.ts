@@ -22,6 +22,19 @@ export class Auth {
     );
   }
 
+  verifyMfa(username: string, code: string): Observable<{ message: string; token: string }> {
+    return this.http.post<{ message: string; token: string }>(`${this.apiUrl}/verify-mfa`, {
+      username,
+      code
+    }).pipe(
+      tap(response => {
+        if (response?.token) {
+          localStorage.setItem('psp_admin_token', response.token);
+        }
+      })
+    );
+  }
+
   getToken(): string | null {
     return localStorage.getItem('psp_admin_token');
   }

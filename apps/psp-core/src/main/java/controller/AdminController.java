@@ -3,6 +3,7 @@ package controller;
 import dto.ChangePasswordDTO;
 import dto.LoginRequestDTO;
 import dto.MerchantConfigDTO;
+import dto.VerifyMfaRequestDTO;
 import model.Admin;
 import model.Merchant;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,9 +13,11 @@ import jwt.JwtService; // Dodato
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 import repository.MerchantRepository;
 import service.LoginAttemptService;
 import service.MerchantService;
+import service.MfaService;
 import service.SessionActivityService;
 import tools.AuditLogger;
 
@@ -36,6 +39,7 @@ public class AdminController {
     private final JwtService jwtService;
     private final SessionActivityService sessionActivityService;
     private final LoginAttemptService loginAttemptService;
+    private final MfaService mfaService;
 
     public AdminController(AdminRepository adminRepository,
                            MerchantRepository merchantRepository,
@@ -44,7 +48,8 @@ public class AdminController {
                            AuditLogger auditLogger,
                            JwtService jwtService,
                            SessionActivityService sessionActivityService,
-                           LoginAttemptService loginAttemptService) {
+                           LoginAttemptService loginAttemptService,
+                           MfaService mfaService) {
         this.adminRepository = adminRepository;
         this.merchantRepository = merchantRepository;
         this.merchantService = merchantService;
@@ -53,6 +58,7 @@ public class AdminController {
         this.jwtService = jwtService;
         this.sessionActivityService = sessionActivityService;
         this.loginAttemptService = loginAttemptService;
+        this.mfaService = mfaService;
     }
 
     @PostMapping("/login")
@@ -101,14 +107,31 @@ public class AdminController {
             return ResponseEntity.ok(response);
         }
 
+        // MFA: generate code, send email, return MFA_REQUIRED
+        mfaService.generateAndSendCode(admin);
+
+        Map<String, Object> mfaResponse = new HashMap<>();
+        mfaResponse.put("status", "MFA_REQUIRED");
+        mfaResponse.put("username", admin.getUsername());
+        return ResponseEntity.ok(mfaResponse);
+    }
+
+    @PostMapping("/verify-mfa")
+    public ResponseEntity<?> verifyMfa(@Valid @RequestBody VerifyMfaRequestDTO request) {
+        var adminOpt = mfaService.verifyCode(request.getUsername(), request.getCode());
+
+        if (adminOpt.isEmpty()) {
+            return ResponseEntity.status(401).body("Neispravan ili istekao kod. Pokušajte ponovo.");
+        }
+
+        Admin admin = adminOpt.get();
         admin.setLastLoginAt(LocalDateTime.now());
         adminRepository.save(admin);
 
         sessionActivityService.updateActivity(admin.getId());
 
         String token = jwtService.generateToken(admin);
-
-        auditLogger.logEvent("ADMIN_LOGIN_SUCCESS", "SUCCESS", "User: " + request.getUsername());
+        auditLogger.logEvent("ADMIN_LOGIN_SUCCESS", "SUCCESS", "User: " + admin.getUsername());
 
         return ResponseEntity.ok(Map.of(
                 "message", "Uspešna prijava.",
