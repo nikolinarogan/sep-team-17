@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -90,6 +91,11 @@ public class AuthService {
                     return true;
                 })
                 .orElse(null);
+    }
+
+    public Optional<AppUser> verifyPassword(String email, String rawPassword) {
+        return userRepository.findByEmail(email)
+                .filter(user -> passwordEncoder.matches(rawPassword, user.getPassword()));
     }
 
     public String generateToken(AppUser user) {

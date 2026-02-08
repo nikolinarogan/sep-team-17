@@ -64,6 +64,12 @@ export class LoginComponent implements OnInit {
                 firstTime: 'true'
               }
             });
+          } else if (response.status === 'MFA_REQUIRED') {
+            // Admin MFA verification required
+            this.isLoading = false;
+            this.router.navigate(['/mfa'], {
+              queryParams: { email: response.email }
+            });
           } else if (response.token) {
             // Successful login
             this.isLoading = false;
