@@ -8,6 +8,7 @@ import com.ws.backend.model.AppUser;
 import com.ws.backend.model.Role;
 import com.ws.backend.repository.UserRepository;
 import com.ws.backend.service.AuthService;
+import com.ws.backend.service.SessionActivityService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,10 +22,13 @@ public class AuthController {
 
     private final AuthService userService;
     private final UserRepository userRepository;
+    private final SessionActivityService sessionActivityService;
 
-    public AuthController(AuthService userService, UserRepository userRepository) {
+
+    public AuthController(AuthService userService, UserRepository userRepository, SessionActivityService sessionActivityService) {
         this.userService = userService;
         this.userRepository = userRepository;
+        this.sessionActivityService = sessionActivityService;
     }
 
     @PostMapping("/register")
@@ -72,6 +76,7 @@ public class AuthController {
             );
         }
 
+        sessionActivityService.updateActivity(user.getId());
 
         String token = userService.generateToken(user);
 

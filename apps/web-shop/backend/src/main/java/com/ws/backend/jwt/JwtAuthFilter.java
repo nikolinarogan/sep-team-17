@@ -2,6 +2,7 @@ package com.ws.backend.jwt;
 
 import com.ws.backend.model.AppUser;
 import com.ws.backend.repository.UserRepository;
+import com.ws.backend.service.SessionActivityService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -24,10 +25,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final SessionActivityService sessionActivityService;
 
-    public JwtAuthFilter(JwtService jwtService, UserRepository userRepository) {
+
+    public JwtAuthFilter(JwtService jwtService, UserRepository userRepository, SessionActivityService sessionActivityService) {
         this.jwtService = jwtService;
         this.userRepository = userRepository;
+        this.sessionActivityService = sessionActivityService;
     }
 
     @Override
@@ -70,6 +74,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 String role = claims.get("role", String.class);
                 Long userId = claims.get("userId", Long.class);
+
+                if (!sessionActivityService.isSessionValid(userId)) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"message\":\"Session expired due to inactivity. Please log in again.\"}");
+                    return;
+                }
+                sessionActivityService.updateActivity(userId);
 
                 String jti = claims.getId();
 
