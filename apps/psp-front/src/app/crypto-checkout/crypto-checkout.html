@@ -1,0 +1,49 @@
+<div *ngIf="isLoading" class="text-center">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Učitavanje...</span>
+  </div>
+  <p class="mt-2 text-muted">Generišem Bitcoin adresu i preračunavam iznos...</p>
+</div>
+
+<div *ngIf="!isLoading">
+    <div class="container d-flex justify-content-center align-items-center min-vh-100">
+  <div class="card shadow-lg border-0 p-4" style="max-width: 450px; width: 100%;">
+    <div class="text-center mb-4">
+      <h3 class="text-primary fw-bold">Bitcoin Plaćanje</h3>
+      <p class="text-muted small">Skenirajte QR kod ili kopirajte adresu ispod</p>
+    </div>
+
+    
+    <div class="text-center mb-4 bg-light p-3 rounded">
+      <img [src]="cryptoData.qrCodeUrl" alt="QR Code" class="img-fluid rounded shadow-sm">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label text-muted small mb-1">Iznos u BTC</label>
+      <div class="input-group">
+        <input type="text" class="form-control fw-bold bg-white" [value]="cryptoData.btcAmount" readonly>
+        <button class="btn btn-outline-primary" (click)="copyToClipboard(cryptoData.btcAmount)">
+          Copy
+        </button>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <label class="form-label text-muted small mb-1">Bitcoin Testnet Adresa</label>
+      <div class="input-group">
+        <input type="text" class="form-control small bg-white" [value]="cryptoData.walletAddress" readonly>
+        <button class="btn btn-outline-primary" (click)="copyToClipboard(cryptoData.walletAddress)">
+          Copy
+        </button>
+      </div>
+    </div>
+
+    <div class="alert alert-info py-2 small border-0">
+      <i class="bi bi-info-circle me-2"></i>
+      Status transakcije će se automatski ažurirati čim uplata bude detektovana na mreži.
+    </div>
+
+    <button class="btn btn-secondary w-100" (click)="goBack()">Odustani</button>
+  </div>
+</div>
+  </div>

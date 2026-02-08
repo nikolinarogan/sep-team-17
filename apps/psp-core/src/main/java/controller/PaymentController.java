@@ -6,8 +6,12 @@ import model.PaymentMethod;
 import model.PaymentTransaction;
 import repository.PaymentMethodRepository;
 import repository.PaymentTransactionRepository;
+import service.CardPaymentService;
+import service.CryptoPaymentService;
+import service.PaymentService;
+import service.QrPaymentService;
 import service.*;
-import tools.AuditLogger; // Dodato
+import tools.AuditLogger; 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,19 +26,29 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final CardPaymentService cardPaymentService;
+    private final QrPaymentService qrPaymentService;
+    private final CryptoPaymentService cryptoPaymentService;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final PaymentRegistry paymentRegistry;
     private final GenericPaymentService genericPaymentService;
-    private final AuditLogger auditLogger; // Dodato
+    private final AuditLogger auditLogger; 
 
     public PaymentController(PaymentService paymentService,
-                             PaymentTransactionRepository paymentTransactionRepository,
+                             CardPaymentService cardPaymentService,
+                             QrPaymentService qrPaymentService,
+                             CryptoPaymentService cryptoPaymentService,
+                              PaymentTransactionRepository paymentTransactionRepository,
                              PaymentMethodRepository paymentMethodRepository,
                              PaymentRegistry paymentRegistry,
                              GenericPaymentService genericPaymentService,
-                             AuditLogger auditLogger) { // Dodato u konstruktor
+                             AuditLogger auditLogger) {
+      
         this.paymentService = paymentService;
+        this.cardPaymentService = cardPaymentService;
+        this.qrPaymentService = qrPaymentService;
+        this.cryptoPaymentService = cryptoPaymentService;
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.paymentRegistry = paymentRegistry;
@@ -224,5 +238,37 @@ public class PaymentController {
 
         auditLogger.logEvent("S2S_QR_FINALIZE_SUCCESS", "SUCCESS", "UUID: " + callback.getPaymentId());
         return ResponseEntity.ok(redirectUrl);
+    }
+
+    @PostMapping("/checkout/{uuid}/crypto")
+    public ResponseEntity<CryptoPaymentResponseDTO> initCryptoPayment(@PathVariable String uuid) {
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena"));
+
+        // Pozivamo servis koji vrši konverziju i generiše adresu [cite: 83, 86, 96]
+        CryptoPaymentResponseDTO response = cryptoPaymentService.initializeCryptoPayment(tx);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/crypto-callback/{uuid}")
+    public ResponseEntity<Void> handleCryptoCallback(@PathVariable String uuid, @RequestBody Map<String, Object> payload) {
+        System.out.println("🔔 Stigao Webhook poziv za kripto transakciju: " + uuid);
+
+        // Pozivamo servis da obradi status u bazi [cite: 79, 93]
+        cryptoPaymentService.processCallback(uuid, payload);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/check-crypto-status/{uuid}")
+    public ResponseEntity<Map<String, String>> checkCryptoStatus(@PathVariable String uuid) {
+        String redirectUrl = cryptoPaymentService.checkPaymentStatus(uuid);
+
+        // Vraćamo JSON: { "redirectUrl": "https://..." } ili { "redirectUrl": null }
+        Map<String, String> response = new HashMap<>();
+        response.put("redirectUrl", redirectUrl);
+
+        return ResponseEntity.ok(response);
     }
 }
