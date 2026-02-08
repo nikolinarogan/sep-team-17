@@ -11,16 +11,25 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
+import repository.AdminRepository;
+import model.Admin;
+import service.SessionActivityService;
 
 import java.io.IOException;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final AdminRepository adminRepository;
+    private final SessionActivityService sessionActivityService;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, AdminRepository adminRepository,
+                         SessionActivityService sessionActivityService) {
         this.jwtService = jwtService;
+        this.adminRepository = adminRepository;
+        this.sessionActivityService = sessionActivityService;
     }
 
     @Override
@@ -39,6 +48,30 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.getClaims(token);
                 String username = claims.getSubject();
+
+                var adminOpt = adminRepository.findByUsername(username);
+                if (adminOpt.isEmpty() || !adminOpt.get().isActive()) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    return;
+                }
+
+                Admin admin = adminOpt.get();
+                Long adminId = admin.getId();
+
+                if (!sessionActivityService.isSessionValid(adminId)) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"message\":\"Session expired due to inactivity. Please log in again.\"}");
+                    return;
+                }
+                sessionActivityService.updateActivity(adminId);
+
+                var now = java.time.LocalDateTime.now();
+                var last = admin.getLastLoginAt();
+                if (last == null || ChronoUnit.MINUTES.between(last, now) >= 1) {
+                    admin.setLastLoginAt(now);
+                    adminRepository.save(admin);
+                }
 
                 String roleFromToken = claims.get("role", String.class);
 

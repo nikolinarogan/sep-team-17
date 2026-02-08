@@ -17,6 +17,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import repository.AdminRepository;
+import service.SessionActivityService;
+
 import java.util.List;
 
 @Configuration
@@ -25,9 +28,14 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtService jwtService;
+    private final AdminRepository adminRepository;
+    private final SessionActivityService sessionActivityService;
 
-    public SecurityConfig(JwtService jwtService) {
+    public SecurityConfig(JwtService jwtService, AdminRepository adminRepository,
+                          SessionActivityService sessionActivityService) {
         this.jwtService = jwtService;
+        this.adminRepository = adminRepository;
+        this.sessionActivityService = sessionActivityService;
     }
 
     @Bean
@@ -50,7 +58,7 @@ public class SecurityConfig {
 
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtAuthFilter(jwtService, adminRepository, sessionActivityService), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

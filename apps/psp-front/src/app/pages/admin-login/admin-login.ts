@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { LoginRequestDTO } from '../../models/psp-models';
 import { Auth } from '../../services/auth';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -11,7 +11,7 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './admin-login.html',
   styleUrl: './admin-login.css',
 })
-export class AdminLogin {
+export class AdminLogin implements OnInit {
   credentials: LoginRequestDTO = {
     username: '',
     password: ''
@@ -20,9 +20,23 @@ export class AdminLogin {
   errorMessage = '';
   isLoading = false;
 
-  constructor(private authService: Auth, private router: Router) {}
+  constructor(
+    private authService: Auth,
+    private router: Router,
+    private route: ActivatedRoute
+  ) {}
 
- onSubmit() {
+  ngOnInit(): void {
+    this.route.queryParams.subscribe((params) => {
+      if (params['idle'] === 'true') {
+        this.errorMessage = 'Sesija je istekla zbog neaktivnosti (15 min). Molimo prijavite se ponovo.';
+      } else if (params['expired'] === 'true') {
+        this.errorMessage = 'Sesija je istekla. Molimo prijavite se ponovo.';
+      }
+    });
+  }
+
+  onSubmit() {
   this.isLoading = true;
   this.errorMessage = '';
 
