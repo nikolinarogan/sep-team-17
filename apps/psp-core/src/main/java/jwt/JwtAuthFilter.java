@@ -11,6 +11,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
+import repository.AdminRepository;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,9 +19,11 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final AdminRepository adminRepository;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, AdminRepository adminRepository) {
         this.jwtService = jwtService;
+        this.adminRepository = adminRepository;
     }
 
     @Override
@@ -39,6 +42,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.getClaims(token);
                 String username = claims.getSubject();
+
+                var adminOpt = adminRepository.findByUsername(username);
+                if (adminOpt.isEmpty() || !adminOpt.get().isActive()) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    return;
+                }
 
                 String roleFromToken = claims.get("role", String.class);
 
