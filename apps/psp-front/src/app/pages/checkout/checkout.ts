@@ -4,6 +4,7 @@ import { CheckoutResponse, PaymentMethod } from '../../models/psp-models';
 import { Payment } from '../../services/payment';
 import { QRCodeComponent } from 'angularx-qrcode';
 import { ZXingScannerModule } from '@zxing/ngx-scanner';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-checkout',
@@ -19,7 +20,7 @@ export class Checkout implements OnInit{
   errorMessage = '';
   qrCodeString: string = ''; 
   showScanner = false;
-  constructor(private paymentService: Payment) {}
+  constructor(private paymentService: Payment, private router: Router) {}
 
   ngOnInit(): void {
     if (this.uuid) {
@@ -46,6 +47,11 @@ export class Checkout implements OnInit{
 
   selectMethod(method: PaymentMethod) {
     console.log("Korisnik bira:", method.name);
+
+    if (method.name === 'CRYPTO') {
+      this.router.navigate(['/checkout', this.uuid, 'crypto']);
+      return;
+    }
 
     if (method.name === 'CARD') { 
         this.isLoading = true;
@@ -131,4 +137,8 @@ export class Checkout implements OnInit{
       const bankUrl = 'https://localhost:8082/mbanking.html'; 
       window.open(bankUrl, '_blank');
   }
+
+  selectCryptoPayment() {
+  this.router.navigate(['/checkout', this.uuid, 'crypto']);
+}
 }

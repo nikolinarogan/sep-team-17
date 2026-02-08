@@ -4,6 +4,7 @@ import dto.*;
 import model.PaymentTransaction;
 import repository.PaymentTransactionRepository;
 import service.CardPaymentService;
+import service.CryptoPaymentService;
 import service.PaymentService;
 import service.QrPaymentService;
 import jakarta.validation.Valid;
@@ -22,15 +23,18 @@ public class PaymentController {
     private final PaymentService paymentService;
     private final CardPaymentService cardPaymentService;
     private final QrPaymentService qrPaymentService;
+    private final CryptoPaymentService cryptoPaymentService;
     private final PaymentTransactionRepository paymentTransactionRepository;
 
     public PaymentController(PaymentService paymentService,
                              CardPaymentService cardPaymentService,
                              QrPaymentService qrPaymentService,
+                             CryptoPaymentService cryptoPaymentService,
                              PaymentTransactionRepository paymentTransactionRepository) {
         this.paymentService = paymentService;
         this.cardPaymentService = cardPaymentService;
         this.qrPaymentService = qrPaymentService;
+        this.cryptoPaymentService = cryptoPaymentService;
         this.paymentTransactionRepository = paymentTransactionRepository;
     }
 
@@ -98,5 +102,37 @@ public class PaymentController {
         System.out.println("Stigao odgovor za QR (Server-to-Server)!");
         String redirectUrl = paymentService.finaliseTransaction(callback, "QR_CODE");
         return ResponseEntity.ok(redirectUrl);
+    }
+
+    @PostMapping("/checkout/{uuid}/crypto")
+    public ResponseEntity<CryptoPaymentResponseDTO> initCryptoPayment(@PathVariable String uuid) {
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena"));
+
+        // Pozivamo servis koji vrši konverziju i generiše adresu [cite: 83, 86, 96]
+        CryptoPaymentResponseDTO response = cryptoPaymentService.initializeCryptoPayment(tx);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/crypto-callback/{uuid}")
+    public ResponseEntity<Void> handleCryptoCallback(@PathVariable String uuid, @RequestBody Map<String, Object> payload) {
+        System.out.println("🔔 Stigao Webhook poziv za kripto transakciju: " + uuid);
+
+        // Pozivamo servis da obradi status u bazi [cite: 79, 93]
+        cryptoPaymentService.processCallback(uuid, payload);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/check-crypto-status/{uuid}")
+    public ResponseEntity<Map<String, String>> checkCryptoStatus(@PathVariable String uuid) {
+        String redirectUrl = cryptoPaymentService.checkPaymentStatus(uuid);
+
+        // Vraćamo JSON: { "redirectUrl": "https://..." } ili { "redirectUrl": null }
+        Map<String, String> response = new HashMap<>();
+        response.put("redirectUrl", redirectUrl);
+
+        return ResponseEntity.ok(response);
     }
 }
