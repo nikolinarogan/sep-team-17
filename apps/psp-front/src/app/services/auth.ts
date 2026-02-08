@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { LoginRequestDTO } from '../models/psp-models';
 
 @Injectable({
@@ -11,10 +11,23 @@ export class Auth {
 
   constructor(private http: HttpClient) { }
 
-  login(credentials: LoginRequestDTO): Observable<string> {
-    return this.http.post(`${this.apiUrl}/login`, credentials, { 
-      responseType: 'text' 
-    });
+  login(credentials: LoginRequestDTO): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/login`, credentials).pipe(
+      tap(response => {
+        // Ako bek vrati token, sačuvaj ga
+        if (response && response.token) {
+          localStorage.setItem('psp_admin_token', response.token);
+        }
+      })
+    );
+  }
+
+  getToken() {
+    return localStorage.getItem('psp_admin_token');
+  }
+
+  logout() {
+    localStorage.removeItem('psp_admin_token');
   }
   
 }

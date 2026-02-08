@@ -38,4 +38,9 @@ public class Admin {
 
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
+    @Column(nullable = true)
+    private String role = "ADMIN";
+
+    @Column(nullable = true)
+    private Boolean hasChangedPassword = true;
 }

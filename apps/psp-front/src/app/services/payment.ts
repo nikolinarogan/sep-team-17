@@ -22,6 +22,22 @@ export class Payment {
       scannedString: scannedData
     });
   }
+
+    initiateCryptoPayment(uuid: string): Observable<{ btcAmount: string, walletAddress: string, qrCodeUrl: string }> {
+    return this.http.post<{ btcAmount: string, walletAddress: string, qrCodeUrl: string }>(
+      `${this.apiUrl}/payments/checkout/${uuid}/crypto`, 
+      {}
+    );
+  }
+
+  checkTransactionStatus(uuid: string): Observable<{ status: string }> {
+  return this.http.get<{ status: string }>(`${this.apiUrl}/payments/status/${uuid}`);
+  }
+
+  checkCryptoStatus(uuid: string) {
+    return this.http.get<{ redirectUrl: string | null }>(`${this.apiUrl}/payments/check-crypto-status/${uuid}`);
+  }
+
 /**
  * Generički poziv za inicijalizaciju plaćanja bilo kojom metodom.
  */

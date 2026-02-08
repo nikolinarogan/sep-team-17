@@ -6,7 +6,7 @@ import dto.MerchantCredentialsDTO;
 import org.springframework.security.access.prepost.PreAuthorize;
 import repository.MerchantSubscriptionRepository;
 import service.MerchantService;
-import tools.AuditLogger; // Dodato
+import tools.AuditLogger;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,11 +19,11 @@ public class MerchantController {
 
     private final MerchantService merchantService;
     private final MerchantSubscriptionRepository subscriptionRepository;
-    private final AuditLogger auditLogger; // Dodato
+    private final AuditLogger auditLogger;
 
     public MerchantController(MerchantService merchantService,
                               MerchantSubscriptionRepository subscriptionRepository,
-                              AuditLogger auditLogger) { // Dodato u konstruktor
+                              AuditLogger auditLogger) {
         this.merchantService = merchantService;
         this.subscriptionRepository = subscriptionRepository;
         this.auditLogger = auditLogger;
@@ -90,7 +90,6 @@ public class MerchantController {
         auditLogger.logEvent("VIEW_ALL_MERCHANTS", "SUCCESS", "Accessed by admin/system");
         return ResponseEntity.ok(merchantService.findAll());
     }
-
     @GetMapping("/{merchantId}/subscriptions")
 //    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<List<model.MerchantSubscription>> getSubscriptions(@PathVariable String merchantId) {

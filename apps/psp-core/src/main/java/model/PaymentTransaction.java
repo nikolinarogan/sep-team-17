@@ -70,6 +70,15 @@ public class PaymentTransaction {
     @Column(name = "service_timestamp")
     private LocalDateTime serviceTimestamp;
 
+    @Column(name = "crypto_address")
+    private String cryptoAddress;
+
+    @Column(name = "amount_in_crypto", precision = 20, scale = 10)
+    private BigDecimal amountInCrypto;
+
+    @Column(name = "crypto_currency")
+    private String cryptoCurrency; // npr. "BTC"
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
