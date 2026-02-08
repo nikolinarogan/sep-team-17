@@ -1,0 +1,18 @@
+.mfa-container {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f0f2f5;
+}
+
+.mfa-card {
+  width: 100%;
+  max-width: 400px;
+  border-radius: 10px;
+}
+
+.mfa-card input[type="text"].text-center {
+  font-size: 1.5rem;
+  letter-spacing: 0.5rem;
+}

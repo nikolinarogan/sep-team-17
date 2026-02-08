@@ -41,4 +41,10 @@ public class Admin {
 
     @Column(name = "has_changed_password", nullable = true)
     private Boolean hasChangedPassword = false;
+
+    @Column(name = "mfa_code")
+    private String mfaCode;
+
+    @Column(name = "mfa_expiry")
+    private LocalDateTime mfaExpiry;
 }
