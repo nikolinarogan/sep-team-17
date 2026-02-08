@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/payment/callback") // OVO MARIJA CUVAS U BAZI ZA WEB_SHOP URL I NJEGA GADJA DA POTVRDI PAYMENT, ZNACI https://localhost:8080/api/payment/callback
+@RequestMapping("/api/payment/callback")
 public class PaymentCallbackController {
 
     private final OrderService orderService;

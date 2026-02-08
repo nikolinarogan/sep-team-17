@@ -13,6 +13,7 @@ import repository.MerchantRepository;
 import service.MerchantService;
 import tools.AuditLogger; // Dodato
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -39,6 +40,7 @@ public class AdminController {
     }
 
     @PostMapping("/login")
+    // U JWT AUTH filetru provjeravati da li je korisncki nalog aktivan kao na web shopu
     public ResponseEntity<String> login(@RequestBody LoginRequestDTO request) {
         auditLogger.logEvent("ADMIN_LOGIN_ATTEMPT", "PENDING", "Username: " + request.getUsername());
 
@@ -52,6 +54,12 @@ public class AdminController {
             auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Invalid password for user: " + request.getUsername());
             return ResponseEntity.status(401).body("Pogrešna lozinka.");
         }
+        if (admin.isActive() == false) {
+            auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Deactivated account for user: " + request.getUsername());
+            return ResponseEntity.status(401).body("Nalog ovog korisnika je deaktiviran.");
+        }
+        admin.setLastLoginAt(LocalDateTime.now());
+        adminRepository.save(admin);
 
         auditLogger.logEvent("ADMIN_LOGIN_SUCCESS", "SUCCESS", "User: " + request.getUsername());
         return ResponseEntity.ok("Uspešna prijava.");
@@ -76,5 +84,18 @@ public class AdminController {
 
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_SUCCESS", "SUCCESS", "Configuration changed for merchant: " + id);
         return ResponseEntity.ok("Servisi uspješno ažurirani.");
+    }
+
+    @PutMapping("/{id}/deactivate")
+    //@PreAuthorize("hasRole('SUPERADMIN')")
+    public ResponseEntity<?> deactivateUser(@PathVariable Long id) {
+        return adminRepository.findById(id)
+                .map(user -> {
+                    user.setActive(false);
+                    adminRepository.save(user);
+
+                    return ResponseEntity.ok("Korisnikov nalog je uspešno deaktiviran.");
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 }

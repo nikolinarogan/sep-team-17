@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "admins")
 @Data
@@ -31,7 +33,9 @@ public class Admin {
     @Column(nullable = false)
     private AdminRole role;
 
-    public String getFullName() {
-        return (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "").trim();
-    }
+    @Column(nullable = false)
+    private boolean active = true;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
 }

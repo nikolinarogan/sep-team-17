@@ -1,5 +1,7 @@
 package com.ws.backend.jwt;
 
+import com.ws.backend.model.AppUser;
+import com.ws.backend.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,9 +23,11 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserRepository userRepository;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, UserRepository userRepository) {
         this.jwtService = jwtService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -55,6 +59,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.getClaims(token);
                 String email = claims.getSubject();
+
+                AppUser user = userRepository.findByEmail(email).orElse(null);
+
+                if (user == null || !user.isActive()) {
+                    System.err.println("JwtAuthFilter - Access denied: User is inactive or not found.");
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN); // 403 Forbidden
+                    return; // Prekidamo lanac, korisnik ne prolazi dalje
+                }
+
                 String role = claims.get("role", String.class);
                 Long userId = claims.get("userId", Long.class);
 
