@@ -15,6 +15,7 @@ import repository.MerchantRepository;
 import service.MerchantService;
 import tools.AuditLogger;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +59,12 @@ public class AdminController {
             auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Invalid password for user: " + request.getUsername());
             return ResponseEntity.status(401).body("Pogrešna lozinka.");
         }
+        if (admin.isActive() == false) {
+            auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Deactivated account for user: " + request.getUsername());
+            return ResponseEntity.status(401).body("Nalog ovog korisnika je deaktiviran.");
+        }
+        admin.setLastLoginAt(LocalDateTime.now());
+        adminRepository.save(admin);
 
         // GENERIŠEMO TOKEN KAO NA WEB SHOPU
         String token = jwtService.generateToken(admin);
@@ -72,6 +79,7 @@ public class AdminController {
     }
 
     @GetMapping("/merchants/{id}")
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<Merchant> getMerchant(@PathVariable String id) {
         auditLogger.logEvent("ADMIN_VIEW_MERCHANT", "SUCCESS", "Accessed merchant ID: " + id);
         return ResponseEntity.ok(merchantRepository.findByMerchantId(id)
@@ -79,11 +87,25 @@ public class AdminController {
     }
 
     @PostMapping("/merchants/{id}/services")
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<String> updateMerchantServices(@PathVariable String id,
                                                          @RequestBody List<MerchantConfigDTO> configs) {
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_START", "PENDING", "Merchant: " + id);
         merchantService.updateServicesByAdmin(id, configs);
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_SUCCESS", "SUCCESS", "Configuration changed for merchant: " + id);
         return ResponseEntity.ok("Servisi uspješno ažurirani.");
+    }
+
+    @PutMapping("/{id}/deactivate")
+    //@PreAuthorize("hasRole('SUPERADMIN')")
+    public ResponseEntity<?> deactivateUser(@PathVariable Long id) {
+        return adminRepository.findById(id)
+                .map(user -> {
+                    user.setActive(false);
+                    adminRepository.save(user);
+
+                    return ResponseEntity.ok("Korisnikov nalog je uspešno deaktiviran.");
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 }

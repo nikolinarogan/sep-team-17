@@ -33,6 +33,7 @@ public class MerchantController {
      * AŽURIRANJE SERVISA (Zahtijeva Header X-Merchant-Password)
      * PUT /api/merchants/{id}/services
      */
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     @PutMapping("/{merchantId}/services")
     public ResponseEntity<String> updateServices(@PathVariable String merchantId,
                                                  @RequestHeader("X-Merchant-Password") String password,
@@ -52,6 +53,7 @@ public class MerchantController {
      * DELETE /api/merchants/{id}/services/{methodName}
      */
     @DeleteMapping("/{merchantId}/services/{methodName}")
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<String> removeService(@PathVariable String merchantId,
                                                 @PathVariable String methodName) {
 
@@ -70,6 +72,7 @@ public class MerchantController {
      * POST /api/merchants/create
      */
     @PostMapping("/create")
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<MerchantCredentialsDTO> createMerchant(@RequestBody MerchantCreateDTO request) {
         // Logujemo kreiranje novog entiteta u sistemu (PCI DSS 10.2.2)
         auditLogger.logEvent("MERCHANT_CREATION_REQUEST", "START", "Merchant Name: " + request.getName());
@@ -81,12 +84,14 @@ public class MerchantController {
     }
 
     @GetMapping
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<List<model.Merchant>> getAllMerchants() {
         // Logujemo pristup listi svih prodavaca (Administrativni uvid)
         auditLogger.logEvent("VIEW_ALL_MERCHANTS", "SUCCESS", "Accessed by admin/system");
         return ResponseEntity.ok(merchantService.findAll());
     }
     @GetMapping("/{merchantId}/subscriptions")
+//    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<List<model.MerchantSubscription>> getSubscriptions(@PathVariable String merchantId) {
         // Logujemo uvid u pretplate specifičnog prodavca
         auditLogger.logEvent("VIEW_MERCHANT_SUBSCRIPTIONS", "SUCCESS", "Merchant: " + merchantId);

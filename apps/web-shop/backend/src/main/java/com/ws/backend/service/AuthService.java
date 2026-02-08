@@ -80,7 +80,14 @@ public class AuthService {
 
     public AppUser loginCheckCredentials(String email, String rawPassword) {
         return userRepository.findByEmail(email)
-                .filter(user -> passwordEncoder.matches(rawPassword, user.getPassword()))
+                .filter(user -> {
+                    if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+                        return false;
+                    }
+                    user.setLastLoginAt(LocalDateTime.now());
+                    userRepository.save(user);
+                    return true;
+                })
                 .orElse(null);
     }
 
