@@ -4,6 +4,7 @@ import { CheckoutResponse, PaymentMethod } from '../../models/psp-models';
 import { Payment } from '../../services/payment';
 import { QRCodeComponent } from 'angularx-qrcode';
 import { ZXingScannerModule } from '@zxing/ngx-scanner';
+import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { ActivatedRoute } from '@angular/router'; // Uvezeno za čitanje URL parametara
 
@@ -22,13 +23,9 @@ export class Checkout implements OnInit {
   errorMessage = '';
   qrCodeString: string = '';
   showScanner = false;
-
   private initiateSubscription: Subscription | null = null;
 
-  constructor(
-    private paymentService: Payment,
-    private route: ActivatedRoute 
-  ) {}
+  constructor(private paymentService: Payment, private router: Router, private route: ActivatedRoute ) {}
 
   ngOnInit(): void {
     this.route.queryParams.subscribe(params => {
@@ -68,7 +65,7 @@ export class Checkout implements OnInit {
     });
   }
 
-  selectMethod(method: PaymentMethod) {
+selectMethod(method: PaymentMethod) {
     this.isLoading = true;
     this.errorMessage = '';
 
@@ -76,6 +73,10 @@ export class Checkout implements OnInit {
       this.initiateSubscription.unsubscribe();
     }
 
+    if (method.name === 'CRYPTO') {
+      this.router.navigate(['/checkout', this.uuid, 'crypto']);
+      return; 
+    }
     this.initiateSubscription = this.paymentService.initiatePayment(this.uuid, method.name).subscribe({
       next: (response: any) => {
         this.initiateSubscription = null;
@@ -96,7 +97,7 @@ export class Checkout implements OnInit {
           this.isLoading = false;
         }
       },
-      error: (err) => {
+      error: (err: { name: string; message: string | string[]; status: number; error: { retryable: any; error: string; message: any; }; }) => {
         this.initiateSubscription = null;
         console.error('Greška pri inicijalizaciji plaćanja:', err);
 
@@ -112,6 +113,7 @@ export class Checkout implements OnInit {
       }
     });
   }
+  3
 
   onScanSuccess(scannedText: string) {
     console.log("Kamera je pročitala:", scannedText);
@@ -139,4 +141,9 @@ export class Checkout implements OnInit {
     const bankUrl = 'https://localhost:8082/mbanking.html';
     window.open(bankUrl, '_blank');
   }
+
+  selectCryptoPayment() {
+  this.router.navigate(['/checkout', this.uuid, 'crypto']);
+  }
 }
+

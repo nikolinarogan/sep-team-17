@@ -4,6 +4,7 @@ import { AdminLogin } from './pages/admin-login/admin-login';
 import { AdminDashboard } from './pages/admin-dashboard/admin-dashboard';
 import { PaymentMethods } from './pages/payment-methods/payment-methods';
 import { MerchantDetails } from './pages/merchant-details/merchant-details';
+import { CryptoCheckout } from './crypto-checkout/crypto-checkout';
 
 export const routes: Routes = [
     { path: 'checkout/:uuid', component: Checkout },
@@ -11,5 +12,6 @@ export const routes: Routes = [
     { path: 'admin/login', component: AdminLogin},
     { path: 'admin/dashboard', component: AdminDashboard },
     { path: 'admin/methods', component: PaymentMethods },
-    { path: 'admin/merchant/:id', component: MerchantDetails }
+    { path: 'admin/merchant/:id', component: MerchantDetails },
+    { path: 'checkout/:uuid/crypto', component: CryptoCheckout }
 ];

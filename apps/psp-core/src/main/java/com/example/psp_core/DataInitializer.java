@@ -70,6 +70,14 @@ public class DataInitializer implements CommandLineRunner {
             System.out.println("✅ KONFIGURACIJA KREIRANA (Frontend Link)");
         }
 
+        if (pspConfigRepository.count() <= 1) { // Proveravamo da li fale nove konfiguracije
+            saveConfigIfMissing("BLOCKCYPHER_BASE_URL", "https://api.blockcypher.com/v1/btc/test3");
+            saveConfigIfMissing("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3");
+            saveConfigIfMissing("CRYPTO_QR_PROVIDER", "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=");
+            saveConfigIfMissing("PSP_PUBLIC_CALLBACK_URL", " https://overmasterful-noncompensating-zada.ngrok-free.dev");
+            System.out.println("✅ KRIPTO KONFIGURACIJA DODATA (BlockCypher, CoinGecko, QR)");
+        }
+
         // 4. KREIRANJE TEST PRODAVCA (Rent-A-Car)
         if (merchantRepository.count() == 0) {
             Merchant m = new Merchant();
@@ -93,7 +101,12 @@ public class DataInitializer implements CommandLineRunner {
             qrCreds.put("ipsId", "999000");
             addSubscription(m, "QR", qrCreds);
 
+            Map<String, String> cryptoCreds = new HashMap<>();
+            cryptoCreds.put("walletAddress", "tb1qtestaddress...your...wallet...here");
+            addSubscription(m, "CRYPTO", cryptoCreds);
+
             System.out.println("✅ PRETPLATE KREIRANE (Shop ima CARD i QR)");
+            System.out.println("✅ PRETPLATE AŽURIRANE (Shop sada podržava i CRYPTO)");
         }
         if (paymentTransactionRepository.findByUuid("test-transakcija-123").isEmpty()) {
             PaymentTransaction t = new PaymentTransaction();
@@ -131,5 +144,14 @@ public class DataInitializer implements CommandLineRunner {
         sub.setCredentialsJson(objectMapper.writeValueAsString(creds));
 
         subscriptionRepository.save(sub);
+    }
+
+    private void saveConfigIfMissing(String name, String value) {
+        if (pspConfigRepository.findById(name).isEmpty()) {
+            PspConfig config = new PspConfig();
+            config.setConfigName(name);
+            config.setConfigValue(value);
+            pspConfigRepository.save(config);
+        }
     }
 }
