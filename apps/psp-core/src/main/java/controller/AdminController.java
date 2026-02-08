@@ -156,15 +156,19 @@ public class AdminController {
             }
         }
 
-        if (dto.getNewPassword() == null || dto.getNewPassword().length() < 8) {
-            return ResponseEntity.badRequest().body("Nova lozinka mora imati najmanje 8 karaktera.");
+        String newPass = dto.getNewPassword();
+        if (newPass == null || newPass.length() < 12) {
+            return ResponseEntity.badRequest().body("Nova lozinka mora imati najmanje 12 karaktera.");
+        }
+        if (!newPass.matches("^(?=.*[a-zA-Z])(?=.*[0-9]).+$")) {
+            return ResponseEntity.badRequest().body("Lozinka mora sadržati i slova i brojeve.");
         }
 
-        if (passwordEncoder.matches(dto.getNewPassword(), admin.getPassword())) {
+        if (passwordEncoder.matches(newPass, admin.getPassword())) {
             return ResponseEntity.badRequest().body("Nova lozinka ne sme biti ista kao prethodna.");
         }
 
-        admin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        admin.setPassword(passwordEncoder.encode(newPass));
         admin.setHasChangedPassword(true);
         adminRepository.save(admin);
 

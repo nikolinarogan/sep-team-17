@@ -104,7 +104,7 @@ public class AuthController {
     }
 
     @PostMapping("/change-password")
-    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO dto) {
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordDTO dto) {
         try {
             AppUser updatedUser = userService.changePassword(dto);
             return ResponseEntity.ok("Password changed successfully for " + updatedUser.getEmail());

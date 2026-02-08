@@ -34,6 +34,7 @@ public class AuthService {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Email is already registered");
         }
+        validatePassword(request.getPassword(), "Lozinka");
 
         AppUser user = new AppUser();
         user.setName(request.getName());
@@ -112,5 +113,14 @@ public class AuthService {
         }
 
         return userRepository.save(user);
+    }
+
+    private void validatePassword(String password, String fieldName) {
+        if (password == null || password.length() < 12) {
+            throw new IllegalArgumentException(fieldName + " mora imati najmanje 12 karaktera");
+        }
+        if (!password.matches("^(?=.*[a-zA-Z])(?=.*[0-9]).+$")) {
+            throw new IllegalArgumentException(fieldName + " mora sadržati i slova i brojeve");
+        }
     }
 }
