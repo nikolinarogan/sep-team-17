@@ -31,7 +31,7 @@ public class PaymentMethodController {
     }
 
     @PostMapping
-//    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<PaymentMethod> createMethod(@RequestBody PaymentMethodRequestDTO request) {
         auditLogger.logEvent("CREATE_PAYMENT_METHOD_START", "PENDING", "Method Name: " + request.getName());
 
@@ -51,7 +51,7 @@ public class PaymentMethodController {
     }
 
     @DeleteMapping("/{id}")
-//    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<Void> deleteMethod(@PathVariable Long id) {
         auditLogger.logEvent("DELETE_PAYMENT_METHOD_START", "PENDING", "Method ID: " + id);
 

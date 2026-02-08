@@ -59,8 +59,12 @@ export class MerchantDetails implements OnInit{
       console.log("Sve je spremno i učitano!");
     },
     error: (err) => {
-      console.error("Greška pri učitavanju podataka:", err);
-      alert("Došlo je do greške pri komunikaciji sa serverom.");
+      if (err.status === 403) {
+        alert('Nemate dozvolu za pregled ovog prodavca.');
+      } else {
+        alert('Došlo je do greške pri komunikaciji sa serverom.');
+      }
+      console.error('Greška pri učitavanju podataka:', err);
     }
   });
 }
@@ -83,6 +87,13 @@ export class MerchantDetails implements OnInit{
     next: () => {
       alert('Promene su uspešno sačuvane!');
       this.router.navigate(['/admin/dashboard']);
+    },
+    error: (err) => {
+      if (err.status === 403) {
+        alert('Nemate dozvolu za ažuriranje servisa prodavca.');
+      } else {
+        alert('Došlo je do greške pri čuvanju.');
+      }
     }
   });
 }

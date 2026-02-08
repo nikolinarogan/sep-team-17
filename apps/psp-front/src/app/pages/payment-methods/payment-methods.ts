@@ -19,7 +19,14 @@ export class PaymentMethods implements OnInit {
   }
 
   loadMethods() {
-    this.pmService.getAllMethods().subscribe(data => this.methods = data);
+    this.pmService.getAllMethods().subscribe({
+      next: (data) => this.methods = data,
+      error: (err) => {
+        if (err.status === 403) {
+          alert('Nemate dozvolu za pregled metoda plaćanja.');
+        }
+      }
+    });
   }
 
   addMethod() {
@@ -28,14 +35,25 @@ export class PaymentMethods implements OnInit {
         this.methods.push(res);
         this.newMethod = { name: '', serviceUrl: '' };
       },
-      error: (err) => alert("Metoda već postoji ili je URL neispravan")
+      error: (err) => {
+        if (err.status === 403) {
+          alert('Nemate dozvolu za dodavanje metode plaćanja.');
+        } else {
+          alert('Metoda već postoji ili je URL neispravan');
+        }
+      }
     });
   }
 
   deleteMethod(id: number) {
-    if(confirm("Da li ste sigurni? Ovo može uticati na prodavce koji koriste ovaj metod.")) {
-      this.pmService.deleteMethod(id).subscribe(() => {
-        this.methods = this.methods.filter(m => m.id !== id);
+    if (confirm("Da li ste sigurni? Ovo može uticati na prodavce koji koriste ovaj metod.")) {
+      this.pmService.deleteMethod(id).subscribe({
+        next: () => this.methods = this.methods.filter(m => m.id !== id),
+        error: (err) => {
+          if (err.status === 403) {
+            alert('Nemate dozvolu za brisanje metode plaćanja.');
+          }
+        }
       });
     }
   }

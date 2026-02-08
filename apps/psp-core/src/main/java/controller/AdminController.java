@@ -79,7 +79,7 @@ public class AdminController {
     }
 
     @GetMapping("/merchants/{id}")
-//    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<Merchant> getMerchant(@PathVariable String id) {
         auditLogger.logEvent("ADMIN_VIEW_MERCHANT", "SUCCESS", "Accessed merchant ID: " + id);
         return ResponseEntity.ok(merchantRepository.findByMerchantId(id)
@@ -87,7 +87,7 @@ public class AdminController {
     }
 
     @PostMapping("/merchants/{id}/services")
-//    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<String> updateMerchantServices(@PathVariable String id,
                                                          @RequestBody List<MerchantConfigDTO> configs) {
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_START", "PENDING", "Merchant: " + id);
@@ -97,7 +97,7 @@ public class AdminController {
     }
 
     @PutMapping("/{id}/deactivate")
-    //@PreAuthorize("hasRole('SUPERADMIN')")
+    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<?> deactivateUser(@PathVariable Long id) {
         return adminRepository.findById(id)
                 .map(user -> {
