@@ -106,6 +106,10 @@ public class AuthService {
             }
         }
 
+        if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Nova lozinka ne sme biti ista kao prethodna.");
+        }
+
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
 
         if (user.getRole() == Role.ADMIN && !user.getHasChangedPassword()) {
