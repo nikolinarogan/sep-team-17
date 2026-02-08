@@ -29,9 +29,9 @@ public class Admin {
     @Column(name = "last_name")
     private String lastName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private AdminRole role;
+//    @Enumerated(EnumType.STRING)
+//    @Column(nullable = false)
+//    private AdminRole role;
 
     @Column(nullable = false)
     private boolean active = true;

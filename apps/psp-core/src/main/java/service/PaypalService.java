@@ -18,6 +18,8 @@ public class PaypalService implements PaymentProvider{
     @Value("${PAYPAL_CLIENT_SECRET}")
     private String clientSecret;
 
+    private static final String pspExternalUrl = "https://localhost:8000";
+
     private final RestTemplate restTemplate;
     private final PaymentTransactionRepository transactionRepository;
 
@@ -92,6 +94,7 @@ public class PaypalService implements PaymentProvider{
         // URL-ovi za povratak (HTTPS obavezan)
         Map<String, String> appContext = new HashMap<>();
         appContext.put("return_url", "https://localhost:8443/api/payments/paypal/capture?uuid=" + tx.getUuid());
+        //appContext.put("return_url", pspExternalUrl + "/api/payments/paypal/capture?uuid=" + tx.getUuid());
         appContext.put("cancel_url", tx.getFailedUrl());
         orderRequest.put("application_context", appContext);
 
