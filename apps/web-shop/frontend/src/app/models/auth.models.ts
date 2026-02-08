@@ -11,7 +11,9 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  message: string;
-  token: string | null;
-  mustChangePassword: boolean;
+  message?: string;
+  token?: string | null;
+  mustChangePassword?: boolean;
+  status?: string;
+  email?: string;
 }

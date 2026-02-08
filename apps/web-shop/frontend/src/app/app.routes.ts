@@ -4,6 +4,7 @@ import { RegisterComponent } from '../components/register/register';
 import { LoginComponent } from '../components/login/login';
 import { LandingComponent } from '../components/landing/landing';
 import { ChangePasswordComponent } from '../components/change-password/change-password';
+import { MfaComponent } from '../components/mfa/mfa';
 import { VehiclesComponent } from '../components/vehicles/vehicles';
 import { VehicleFormComponent } from '../components/vehicle-form/vehicle-form';
 import { EquipmentComponent } from '../components/equipment/equipment';
@@ -30,6 +31,7 @@ export const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'change-password', component: ChangePasswordComponent },
+  { path: 'mfa', component: MfaComponent },
   { path: 'vehicles', component: VehiclesComponent, canActivate: [adminGuard] },
   { path: 'vehicles/new', component: VehicleFormComponent, canActivate: [adminGuard] },
   { path: 'vehicles/edit/:id', component: VehicleFormComponent, canActivate: [adminGuard] },

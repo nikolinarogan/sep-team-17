@@ -49,6 +49,12 @@ public class AppUser  {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Column(name = "mfa_code")
+    private String mfaCode;
+
+    @Column(name = "mfa_expiry")
+    private LocalDateTime mfaExpiry;
+
     public Long getId() {
         return id;
     }

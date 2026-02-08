@@ -38,7 +38,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/register", "/auth/login", "/auth/activate", "/auth/change-password").permitAll()
+                        .requestMatchers("/auth/register", "/auth/login", "/auth/activate", "/auth/change-password", "/auth/verify-mfa").permitAll()
                         .requestMatchers("/api/orders/**", "/api/payment/callback/**", "/api/orders/status/**").permitAll()
                         .requestMatchers("/success", "/failed", "/error").permitAll()
                         .requestMatchers("/orders/status/**").permitAll()
