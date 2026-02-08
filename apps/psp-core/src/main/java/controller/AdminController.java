@@ -1,5 +1,6 @@
 package controller;
 
+import dto.ChangePasswordDTO;
 import dto.LoginRequestDTO;
 import dto.MerchantConfigDTO;
 import model.Admin;
@@ -12,10 +13,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import repository.MerchantRepository;
+import service.LoginAttemptService;
 import service.MerchantService;
 import service.SessionActivityService;
 import tools.AuditLogger;
 
+import java.util.HashMap;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +35,7 @@ public class AdminController {
     private final AuditLogger auditLogger;
     private final JwtService jwtService;
     private final SessionActivityService sessionActivityService;
+    private final LoginAttemptService loginAttemptService;
 
     public AdminController(AdminRepository adminRepository,
                            MerchantRepository merchantRepository,
@@ -39,7 +43,8 @@ public class AdminController {
                            PasswordEncoder passwordEncoder,
                            AuditLogger auditLogger,
                            JwtService jwtService,
-                           SessionActivityService sessionActivityService) {
+                           SessionActivityService sessionActivityService,
+                           LoginAttemptService loginAttemptService) {
         this.adminRepository = adminRepository;
         this.merchantRepository = merchantRepository;
         this.merchantService = merchantService;
@@ -47,37 +52,64 @@ public class AdminController {
         this.auditLogger = auditLogger;
         this.jwtService = jwtService;
         this.sessionActivityService = sessionActivityService;
+        this.loginAttemptService = loginAttemptService;
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO request) {
-        auditLogger.logEvent("ADMIN_LOGIN_ATTEMPT", "PENDING", "Username: " + request.getUsername());
+        String username = request.getUsername();
+        auditLogger.logEvent("ADMIN_LOGIN_ATTEMPT", "PENDING", "Username: " + username);
 
-        Admin admin = adminRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> {
-                    auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "User not found: " + request.getUsername());
-                    return new RuntimeException("Korisnik ne postoji.");
-                });
+        if (username != null && !username.isBlank()) {
+            if (loginAttemptService.isLockedOut(username)) {
+                long remaining = loginAttemptService.getRemainingLockoutMinutes(username);
+                auditLogger.logSecurityAlert("ADMIN_LOGIN_LOCKED", "Lockout: " + username + " (" + remaining + " min)");
+                return ResponseEntity.status(429).body(
+                        "Prijava onemogućena. Previše neuspešnih pokušaja. Pokušajte ponovo za " + remaining + " minuta.");
+            }
+        }
+
+        Admin admin = adminRepository.findByUsername(username).orElse(null);
+
+        if (admin == null) {
+            if (username != null && !username.isBlank()) {
+                loginAttemptService.recordFailedAttempt(username);
+            }
+            auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "User not found: " + username);
+            return ResponseEntity.status(401).body("Pogrešno korisničko ime ili lozinka.");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
-            auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Invalid password for user: " + request.getUsername());
+            loginAttemptService.recordFailedAttempt(username);
+            auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Invalid password for user: " + username);
             return ResponseEntity.status(401).body("Pogrešna lozinka.");
         }
+
+        loginAttemptService.clearAttempts(username);
         if (admin.isActive() == false) {
             auditLogger.logSecurityAlert("ADMIN_LOGIN_FAILED", "Deactivated account for user: " + request.getUsername());
             return ResponseEntity.status(401).body("Nalog ovog korisnika je deaktiviran.");
         }
+
+        // Prvi login – mora da promeni lozinku
+        if (Boolean.FALSE.equals(admin.getHasChangedPassword())) {
+            auditLogger.logEvent("ADMIN_FIRST_LOGIN", "MUST_CHANGE_PASSWORD", "User: " + request.getUsername());
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Morate promeniti lozinku pri prvom prijavljivanju.");
+            response.put("token", null);
+            response.put("mustChangePassword", true);
+            return ResponseEntity.ok(response);
+        }
+
         admin.setLastLoginAt(LocalDateTime.now());
         adminRepository.save(admin);
 
         sessionActivityService.updateActivity(admin.getId());
 
-        // GENERIŠEMO TOKEN KAO NA WEB SHOPU
         String token = jwtService.generateToken(admin);
 
         auditLogger.logEvent("ADMIN_LOGIN_SUCCESS", "SUCCESS", "User: " + request.getUsername());
 
-        // Vraćamo mapu ili DTO sa tokenom
         return ResponseEntity.ok(Map.of(
                 "message", "Uspešna prijava.",
                 "token", token
@@ -100,6 +132,49 @@ public class AdminController {
         merchantService.updateServicesByAdmin(id, configs);
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_SUCCESS", "SUCCESS", "Configuration changed for merchant: " + id);
         return ResponseEntity.ok("Servisi uspješno ažurirani.");
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO dto) {
+        auditLogger.logEvent("ADMIN_CHANGE_PASSWORD_ATTEMPT", "PENDING", "Username: " + dto.getUsername());
+
+        Admin admin = adminRepository.findByUsername(dto.getUsername())
+                .orElseThrow(() -> {
+                    auditLogger.logSecurityAlert("CHANGE_PASSWORD_FAILED", "Admin not found: " + dto.getUsername());
+                    return new IllegalArgumentException("Korisnik nije pronađen.");
+                });
+
+        boolean isFirstTime = Boolean.FALSE.equals(admin.getHasChangedPassword());
+
+        if (!isFirstTime) {
+            if (dto.getOldPassword() == null || dto.getOldPassword().isBlank()) {
+                return ResponseEntity.badRequest().body("Trenutna lozinka je obavezna.");
+            }
+            if (!passwordEncoder.matches(dto.getOldPassword(), admin.getPassword())) {
+                auditLogger.logSecurityAlert("CHANGE_PASSWORD_FAILED", "Wrong old password: " + dto.getUsername());
+                return ResponseEntity.badRequest().body("Trenutna lozinka nije ispravna.");
+            }
+        }
+
+        String newPass = dto.getNewPassword();
+        if (newPass == null || newPass.length() < 12) {
+            return ResponseEntity.badRequest().body("Nova lozinka mora imati najmanje 12 karaktera.");
+        }
+        if (!newPass.matches("^(?=.*[a-zA-Z])(?=.*[0-9]).+$")) {
+            return ResponseEntity.badRequest().body("Lozinka mora sadržati i slova i brojeve.");
+        }
+
+        if (passwordEncoder.matches(newPass, admin.getPassword())) {
+            return ResponseEntity.badRequest().body("Nova lozinka ne sme biti ista kao prethodna.");
+        }
+
+        admin.setPassword(passwordEncoder.encode(newPass));
+        admin.setHasChangedPassword(true);
+        adminRepository.save(admin);
+
+        auditLogger.logEvent("ADMIN_CHANGE_PASSWORD_SUCCESS", "SUCCESS", "User: " + dto.getUsername());
+
+        return ResponseEntity.ok(Map.of("message", "Lozinka uspešno promenjena. Prijavite se ponovo."));
     }
 
     @PutMapping("/{id}/deactivate")

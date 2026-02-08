@@ -42,7 +42,15 @@ export class AdminLogin implements OnInit {
 
   this.authService.login(this.credentials).subscribe({
     next: (response) => {
-      if (response.token) {
+      if (response.mustChangePassword) {
+        this.isLoading = false;
+        this.router.navigate(['/admin/change-password'], {
+          queryParams: {
+            username: this.credentials.username,
+            firstTime: 'true'
+          }
+        });
+      } else if (response.token) {
         console.log('Login uspešan, token sačuvan.');
         this.router.navigate(['/admin/dashboard']);
       } else {
@@ -54,6 +62,8 @@ export class AdminLogin implements OnInit {
       this.isLoading = false;
       if (err.status === 401) {
         this.errorMessage = 'Pogrešno korisničko ime ili lozinka.';
+      } else if (err.status === 429) {
+        this.errorMessage = typeof err.error === 'string' ? err.error : 'Prijava onemogućena. Previše neuspešnih pokušaja. Pokušajte ponovo za 30 minuta.';
       } else {
         this.errorMessage = 'Sistem nije dostupan.';
       }

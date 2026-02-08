@@ -39,6 +39,6 @@ public class Admin {
     @Column(nullable = true)
     private AdminRole role;
 
-    @Column(nullable = true)
-    private Boolean hasChangedPassword = true;
+    @Column(name = "has_changed_password", nullable = true)
+    private Boolean hasChangedPassword = false;
 }

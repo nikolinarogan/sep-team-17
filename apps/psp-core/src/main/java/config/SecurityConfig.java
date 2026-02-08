@@ -47,6 +47,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // JAVNE RUTE (bez tokena)
                         .requestMatchers("/api/admin/login").permitAll()
+                        .requestMatchers("/api/admin/change-password").permitAll()
                         .requestMatchers("/api/payments/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/payment-methods").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()

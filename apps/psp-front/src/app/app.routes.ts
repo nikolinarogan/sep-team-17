@@ -7,6 +7,7 @@ import { MerchantDetails } from './pages/merchant-details/merchant-details';
 import { adminGuard } from './guards/admin.guard';
 import { guestGuard } from './guards/guest.guard';
 import { CryptoCheckout } from './crypto-checkout/crypto-checkout';
+import { ChangePassword } from './pages/change-password/change-password';
 
 export const routes: Routes = [
     { path: 'checkout/:uuid', component: Checkout },
@@ -16,6 +17,7 @@ export const routes: Routes = [
     { path: 'admin', redirectTo: 'admin/dashboard', pathMatch: 'full' },
 
     { path: 'admin/login', component: AdminLogin, canActivate: [guestGuard] },
+    { path: 'admin/change-password', component: ChangePassword },
 
     {
         path: 'admin/dashboard',

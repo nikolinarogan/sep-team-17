@@ -52,12 +52,13 @@
           formControlName="password"
           class="form-control"
           [class.error]="registerForm.get('password')?.invalid && registerForm.get('password')?.touched">
-        <div class="password-hint" *ngIf="registerForm.get('password')?.value && registerForm.get('password')?.value.length > 0 && registerForm.get('password')?.value.length < 8">
-           Password must be at least 8 characters long (currently {{ registerForm.get('password')?.value.length }})
+        <div class="password-hint" *ngIf="registerForm.get('password')?.value && registerForm.get('password')?.value.length > 0 && registerForm.get('password')?.value.length < 12">
+          Password must be at least 12 characters and contain both letters and numbers (currently {{ registerForm.get('password')?.value.length }})
         </div>
         <div class="error-message" *ngIf="registerForm.get('password')?.invalid && registerForm.get('password')?.touched">
           <span *ngIf="registerForm.get('password')?.errors?.['required']">Password is required</span>
-          <span *ngIf="registerForm.get('password')?.errors?.['minlength']">⚠️ Password must be at least 8 characters long</span>
+          <span *ngIf="registerForm.get('password')?.errors?.['minlength']">Password must be at least 12 characters long</span>
+          <span *ngIf="registerForm.get('password')?.errors?.['pattern']">Password must contain both letters and numbers</span>
         </div>
       </div>
 

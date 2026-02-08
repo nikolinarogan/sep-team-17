@@ -2,6 +2,7 @@ package com.ws.backend.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,14 +22,15 @@ public class RegisterDTO {
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters")
+    @Size(min = 12, message = "Lozinka mora imati najmanje 12 karaktera")
+    @Pattern(regexp = "^(?=.*[a-zA-Z])(?=.*[0-9]).+$", message = "Lozinka mora sadržati i slova i brojeve")
     private String password;
 
-    public @NotBlank(message = "Password is required") @Size(min = 8, message = "Password must be at least 8 characters") String getPassword() {
+    public @NotBlank(message = "Password is required") @Size(min = 12, message = "Lozinka mora imati najmanje 12 karaktera") @Pattern(regexp = "^(?=.*[a-zA-Z])(?=.*[0-9]).+$", message = "Lozinka mora sadržati i slova i brojeve") String getPassword() {
         return password;
     }
 
-    public void setPassword(@NotBlank(message = "Password is required") @Size(min = 8, message = "Password must be at least 8 characters") String password) {
+    public void setPassword(@NotBlank(message = "Password is required") @Size(min = 12, message = "Lozinka mora imati najmanje 12 karaktera") @Pattern(regexp = "^(?=.*[a-zA-Z])(?=.*[0-9]).+$", message = "Lozinka mora sadržati i slova i brojeve") String password) {
         this.password = password;
     }
 

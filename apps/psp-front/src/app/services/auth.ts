@@ -33,5 +33,15 @@ export class Auth {
   isAuthenticated(): boolean {
     return !!this.getToken();
   }
-  
+
+  changePassword(data: {
+    username: string;
+    oldPassword?: string;
+    newPassword: string;
+  }): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(
+      `${this.apiUrl}/change-password`,
+      data
+    );
+  }
 }

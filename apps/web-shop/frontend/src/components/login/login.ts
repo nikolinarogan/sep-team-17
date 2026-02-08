@@ -75,7 +75,11 @@ export class LoginComponent implements OnInit {
           }
         },
         error: (error) => {
-          this.errorMessage = error.error?.message || error.error || 'Login failed. Please try again.';
+          const msg = error.error?.message || error.error || 'Login failed. Please try again.';
+          this.errorMessage = typeof msg === 'string' ? msg : String(msg);
+          if (error.status === 429) {
+            this.infoMessage = '';
+          }
           this.isLoading = false;
         }
       });
