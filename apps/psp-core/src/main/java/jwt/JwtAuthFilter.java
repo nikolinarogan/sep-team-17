@@ -12,8 +12,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 import repository.AdminRepository;
+import model.Admin;
 
 import java.io.IOException;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -47,6 +49,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 if (adminOpt.isEmpty() || !adminOpt.get().isActive()) {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     return;
+                }
+
+                Admin admin = adminOpt.get();
+                var now = java.time.LocalDateTime.now();
+                var last = admin.getLastLoginAt();
+                if (last == null || ChronoUnit.MINUTES.between(last, now) >= 1) {
+                    admin.setLastLoginAt(now);
+                    adminRepository.save(admin);
                 }
 
                 String roleFromToken = claims.get("role", String.class);
