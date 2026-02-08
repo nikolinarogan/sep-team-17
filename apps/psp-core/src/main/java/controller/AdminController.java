@@ -4,19 +4,23 @@ import dto.LoginRequestDTO;
 import dto.MerchantConfigDTO;
 import model.Admin;
 import model.Merchant;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import repository.AdminRepository;
+import jwt.JwtService; // Dodato
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import repository.MerchantRepository;
 import service.MerchantService;
-import tools.AuditLogger; // Dodato
+import tools.AuditLogger;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "https://localhost:4201")
 public class AdminController {
 
     private final AdminRepository adminRepository;
@@ -24,21 +28,24 @@ public class AdminController {
     private final MerchantRepository merchantRepository;
     private final MerchantService merchantService;
     private final AuditLogger auditLogger;
+    private final JwtService jwtService;
 
     public AdminController(AdminRepository adminRepository,
                            MerchantRepository merchantRepository,
                            MerchantService merchantService,
                            PasswordEncoder passwordEncoder,
-                           AuditLogger auditLogger) {
+                           AuditLogger auditLogger,
+                           JwtService jwtService) {
         this.adminRepository = adminRepository;
         this.merchantRepository = merchantRepository;
         this.merchantService = merchantService;
         this.passwordEncoder = passwordEncoder;
         this.auditLogger = auditLogger;
+        this.jwtService = jwtService;
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody LoginRequestDTO request) {
+    public ResponseEntity<?> login(@RequestBody LoginRequestDTO request) {
         auditLogger.logEvent("ADMIN_LOGIN_ATTEMPT", "PENDING", "Username: " + request.getUsername());
 
         Admin admin = adminRepository.findByUsername(request.getUsername())
@@ -52,14 +59,21 @@ public class AdminController {
             return ResponseEntity.status(401).body("Pogrešna lozinka.");
         }
 
+        // GENERIŠEMO TOKEN KAO NA WEB SHOPU
+        String token = jwtService.generateToken(admin);
+
         auditLogger.logEvent("ADMIN_LOGIN_SUCCESS", "SUCCESS", "User: " + request.getUsername());
-        return ResponseEntity.ok("Uspešna prijava.");
+
+        // Vraćamo mapu ili DTO sa tokenom
+        return ResponseEntity.ok(Map.of(
+                "message", "Uspešna prijava.",
+                "token", token
+        ));
     }
 
     @GetMapping("/merchants/{id}")
     public ResponseEntity<Merchant> getMerchant(@PathVariable String id) {
         auditLogger.logEvent("ADMIN_VIEW_MERCHANT", "SUCCESS", "Accessed merchant ID: " + id);
-
         return ResponseEntity.ok(merchantRepository.findByMerchantId(id)
                 .orElseThrow(() -> new RuntimeException("Prodavac nije pronađen")));
     }
@@ -68,9 +82,7 @@ public class AdminController {
     public ResponseEntity<String> updateMerchantServices(@PathVariable String id,
                                                          @RequestBody List<MerchantConfigDTO> configs) {
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_START", "PENDING", "Merchant: " + id);
-
         merchantService.updateServicesByAdmin(id, configs);
-
         auditLogger.logEvent("ADMIN_UPDATE_SERVICES_SUCCESS", "SUCCESS", "Configuration changed for merchant: " + id);
         return ResponseEntity.ok("Servisi uspješno ažurirani.");
     }

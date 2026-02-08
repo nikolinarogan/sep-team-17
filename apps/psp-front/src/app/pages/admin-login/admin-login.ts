@@ -22,28 +22,28 @@ export class AdminLogin {
 
   constructor(private authService: Auth, private router: Router) {}
 
-  onSubmit() {
-    this.isLoading = true;
-    this.errorMessage = '';
+ onSubmit() {
+  this.isLoading = true;
+  this.errorMessage = '';
 
-    this.authService.login(this.credentials).subscribe({
-      next: (response: string) => {
-        console.log('Odgovor:', response);
-        if (response === 'Uspešna prijava.') {
-           this.router.navigate(['/admin/dashboard']);
-        }
-        this.isLoading = false;
-      },
-      error: (err) => {
-        console.error('Greška:', err);
-        this.isLoading = false;
-        
-        if (err.status === 401) {
-          this.errorMessage = err.error || 'Pogrešni podaci.';
-        } else {
-          this.errorMessage = 'Greška na serveru. Proveri da li backend radi.';
-        }
+  this.authService.login(this.credentials).subscribe({
+    next: (response) => {
+      if (response.token) {
+        console.log('Login uspešan, token sačuvan.');
+        this.router.navigate(['/admin/dashboard']);
+      } else {
+        this.errorMessage = 'Neočekivan odgovor servera.';
       }
-    });
-  }
+      this.isLoading = false;
+    },
+    error: (err) => {
+      this.isLoading = false;
+      if (err.status === 401) {
+        this.errorMessage = 'Pogrešno korisničko ime ili lozinka.';
+      } else {
+        this.errorMessage = 'Sistem nije dostupan.';
+      }
+    }
+  });
+}
 }

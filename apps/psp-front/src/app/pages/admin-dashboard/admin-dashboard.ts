@@ -66,6 +66,10 @@ export class AdminDashboard implements OnInit {
   }
 
   logout() {
+    localStorage.removeItem('psp_admin_token');
+    
+    console.log('Admin odjavljen, token obrisan.');
+
     this.router.navigate(['/admin/login']);
   }
 

@@ -25,7 +25,8 @@ import javax.net.ssl.SSLContext;
 		"config",
 		"dto",
 		"repository",
-		"tools"
+		"tools",
+		"jwt"
 })
 @EnableJpaRepositories(basePackages = "repository")
 @EnableScheduling

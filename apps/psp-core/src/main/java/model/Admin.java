@@ -20,4 +20,10 @@ public class Admin {
 
     @Column(nullable = false)
     private String password;
+
+    @Column(nullable = true)
+    private String role = "ADMIN";
+
+    @Column(nullable = true)
+    private Boolean hasChangedPassword = true;
 }
