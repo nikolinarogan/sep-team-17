@@ -13,6 +13,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 import repository.AdminRepository;
 import model.Admin;
+import service.SessionActivityService;
 
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
@@ -22,10 +23,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AdminRepository adminRepository;
+    private final SessionActivityService sessionActivityService;
 
-    public JwtAuthFilter(JwtService jwtService, AdminRepository adminRepository) {
+    public JwtAuthFilter(JwtService jwtService, AdminRepository adminRepository,
+                         SessionActivityService sessionActivityService) {
         this.jwtService = jwtService;
         this.adminRepository = adminRepository;
+        this.sessionActivityService = sessionActivityService;
     }
 
     @Override
@@ -52,6 +56,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 }
 
                 Admin admin = adminOpt.get();
+                Long adminId = admin.getId();
+
+                if (!sessionActivityService.isSessionValid(adminId)) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"message\":\"Session expired due to inactivity. Please log in again.\"}");
+                    return;
+                }
+                sessionActivityService.updateActivity(adminId);
+
                 var now = java.time.LocalDateTime.now();
                 var last = admin.getLastLoginAt();
                 if (last == null || ChronoUnit.MINUTES.between(last, now) >= 1) {

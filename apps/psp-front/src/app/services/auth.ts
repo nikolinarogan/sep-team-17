@@ -22,12 +22,16 @@ export class Auth {
     );
   }
 
-  getToken() {
+  getToken(): string | null {
     return localStorage.getItem('psp_admin_token');
   }
 
-  logout() {
+  logout(): void {
     localStorage.removeItem('psp_admin_token');
+  }
+
+  isAuthenticated(): boolean {
+    return !!this.getToken();
   }
   
 }

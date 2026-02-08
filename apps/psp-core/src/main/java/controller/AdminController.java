@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import repository.MerchantRepository;
 import service.MerchantService;
+import service.SessionActivityService;
 import tools.AuditLogger;
 
 import java.time.LocalDateTime;
@@ -30,19 +31,22 @@ public class AdminController {
     private final MerchantService merchantService;
     private final AuditLogger auditLogger;
     private final JwtService jwtService;
+    private final SessionActivityService sessionActivityService;
 
     public AdminController(AdminRepository adminRepository,
                            MerchantRepository merchantRepository,
                            MerchantService merchantService,
                            PasswordEncoder passwordEncoder,
                            AuditLogger auditLogger,
-                           JwtService jwtService) {
+                           JwtService jwtService,
+                           SessionActivityService sessionActivityService) {
         this.adminRepository = adminRepository;
         this.merchantRepository = merchantRepository;
         this.merchantService = merchantService;
         this.passwordEncoder = passwordEncoder;
         this.auditLogger = auditLogger;
         this.jwtService = jwtService;
+        this.sessionActivityService = sessionActivityService;
     }
 
     @PostMapping("/login")
@@ -65,6 +69,8 @@ public class AdminController {
         }
         admin.setLastLoginAt(LocalDateTime.now());
         adminRepository.save(admin);
+
+        sessionActivityService.updateActivity(admin.getId());
 
         // GENERIŠEMO TOKEN KAO NA WEB SHOPU
         String token = jwtService.generateToken(admin);
