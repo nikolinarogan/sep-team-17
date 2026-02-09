@@ -4,6 +4,7 @@ import dto.*;
 import exception.UnknownPaymentmethodException;
 import model.PaymentMethod;
 import model.PaymentTransaction;
+import model.TransactionStatus;
 import repository.PaymentMethodRepository;
 import repository.PaymentTransactionRepository;
 import service.CardPaymentService;
@@ -26,9 +27,6 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final CardPaymentService cardPaymentService;
-    private final QrPaymentService qrPaymentService;
-    private final CryptoPaymentService cryptoPaymentService;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final PaymentRegistry paymentRegistry;
@@ -36,9 +34,6 @@ public class PaymentController {
     private final AuditLogger auditLogger; 
 
     public PaymentController(PaymentService paymentService,
-                             CardPaymentService cardPaymentService,
-                             QrPaymentService qrPaymentService,
-                             CryptoPaymentService cryptoPaymentService,
                               PaymentTransactionRepository paymentTransactionRepository,
                              PaymentMethodRepository paymentMethodRepository,
                              PaymentRegistry paymentRegistry,
@@ -46,9 +41,6 @@ public class PaymentController {
                              AuditLogger auditLogger) {
       
         this.paymentService = paymentService;
-        this.cardPaymentService = cardPaymentService;
-        this.qrPaymentService = qrPaymentService;
-        this.cryptoPaymentService = cryptoPaymentService;
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.paymentRegistry = paymentRegistry;
@@ -58,7 +50,6 @@ public class PaymentController {
 
     @PostMapping("/init")
     public ResponseEntity<PaymentResponseDTO> initializePayment(@Valid @RequestBody PaymentRequestDTO request) {
-        // PCI DSS: Logujemo inicijalizaciju od strane prodavca (Merchant ID je "KO")
         auditLogger.logEvent("PAYMENT_INIT_REQUEST", "START",
                 "Merchant: " + request.getMerchantId() + " | OrderID: " + request.getMerchantOrderId());
 
@@ -240,26 +231,65 @@ public class PaymentController {
         return ResponseEntity.ok(redirectUrl);
     }
 
-    @PostMapping("/checkout/{uuid}/crypto")
-    public ResponseEntity<CryptoPaymentResponseDTO> initCryptoPayment(@PathVariable String uuid) {
-        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
-                .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena"));
+    @GetMapping("/checkout/{uuid}/crypto-details") // Ili PostMapping, svejedno
+    public ResponseEntity<Map<String, Object>> getCryptoDetails(@PathVariable String uuid) {
+        // Ovde pozivaš mikroservis da ti ponovo vrati podatke (iz keša ili baze)
+        return ResponseEntity.ok(genericPaymentService.getDetails(uuid, "CRYPTO"));
+    }
 
-        // Pozivamo servis koji vrši konverziju i generiše adresu [cite: 83, 86, 96]
-        CryptoPaymentResponseDTO response = cryptoPaymentService.initializeCryptoPayment(tx);
+    @GetMapping("/checkout/{uuid}/status")
+    public ResponseEntity<Map<String, Object>> checkStatus(@PathVariable String uuid) {
+
+        // 1. Prvo učitamo transakciju iz NAŠE baze (Core baza)
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
+
+        Map<String, Object> response = new HashMap<>();
+
+        // A) Ako je u našoj bazi već SUCCESS, ne smaramo mikroservis, odmah vraćamo URL
+        if (tx.getStatus() == TransactionStatus.SUCCESS) {
+            response.put("status", "SUCCESS");
+            response.put("redirectUrl", tx.getSuccessUrl());
+            return ResponseEntity.ok(response);
+        }
+
+        // B) Ako je FAILED, isto vraćamo odmah
+        if (tx.getStatus() == TransactionStatus.FAILED) {
+            response.put("status", "FAILED");
+            response.put("redirectUrl", tx.getFailedUrl());
+            return ResponseEntity.ok(response);
+        }
+
+        // C) Ako je CREATED/PENDING, moramo pitati Mikroservis
+        // Ovde pretpostavljamo da je metoda CRYPTO (ili možeš izvući tx.getChosenMethod() ako si ga setovala)
+        boolean isConfirmed = genericPaymentService.checkTransactionStatus(uuid, "CRYPTO");
+
+        if (isConfirmed) {
+            // 🎉 MIKROSERVIS KAŽE DA SU PARE LEGLE!
+
+            // 1. Ažuriramo status u Core bazi
+            tx.setStatus(TransactionStatus.SUCCESS);
+            tx.setServiceTimestamp(java.time.LocalDateTime.now());
+            paymentTransactionRepository.save(tx);
+
+            // 2. Logujemo uspeh
+            auditLogger.logEvent("PAYMENT_SUCCESS_CONFIRMED", "SUCCESS", "UUID: " + uuid);
+
+            // 3. Opciono: Obavesti WebShop preko Webhook-a (ako imaš tu metodu u servisu)
+            // paymentService.notifyWebShop(tx, "CRYPTO");
+
+            // 4. Vraćamo Frontendu URL za uspeh
+            response.put("status", "SUCCESS");
+            response.put("redirectUrl", tx.getSuccessUrl());
+        } else {
+            // Još nije leglo
+            response.put("status", "PENDING");
+            response.put("redirectUrl", null);
+        }
 
         return ResponseEntity.ok(response);
     }
-
-    @PostMapping("/crypto-callback/{uuid}")
-    public ResponseEntity<Void> handleCryptoCallback(@PathVariable String uuid, @RequestBody Map<String, Object> payload) {
-        System.out.println("🔔 Stigao Webhook poziv za kripto transakciju: " + uuid);
-
-        // Pozivamo servis da obradi status u bazi [cite: 79, 93]
-        cryptoPaymentService.processCallback(uuid, payload);
-
-        return ResponseEntity.ok().build();
-    }
+    /*
 
     @GetMapping("/check-crypto-status/{uuid}")
     public ResponseEntity<Map<String, String>> checkCryptoStatus(@PathVariable String uuid) {
@@ -270,5 +300,5 @@ public class PaymentController {
         response.put("redirectUrl", redirectUrl);
 
         return ResponseEntity.ok(response);
-    }
+    }*/
 }

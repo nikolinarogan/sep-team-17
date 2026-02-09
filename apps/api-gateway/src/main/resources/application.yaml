@@ -22,6 +22,11 @@ spring:
               uri: https://localhost:8443
               predicates:
                 - Path=/api/payments/**
+
+            - id: psp-crypto-route
+              uri: lb://psp-crypto
+              predicates:
+                  - Path=/api/crypto/**
       discovery:
         locator:
           enabled: true

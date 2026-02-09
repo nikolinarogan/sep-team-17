@@ -13,5 +13,6 @@ export const routes: Routes = [
     { path: 'admin/dashboard', component: AdminDashboard },
     { path: 'admin/methods', component: PaymentMethods },
     { path: 'admin/merchant/:id', component: MerchantDetails },
-    { path: 'checkout/:uuid/crypto', component: CryptoCheckout }
+    { path: 'checkout/:uuid/crypto', component: CryptoCheckout },
+    { path: 'crypto-checkout/:uuid', component: CryptoCheckout }
 ];

@@ -3,11 +3,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Payment } from '../services/payment';
 import { interval, Subscription, switchMap, takeWhile } from 'rxjs';
+import { QRCodeComponent } from "angularx-qrcode";
 
 @Component({
   selector: 'app-crypto-checkout',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, QRCodeComponent],
   templateUrl: './crypto-checkout.html',
   styleUrls: ['./crypto-checkout.css']
 })
@@ -27,17 +28,21 @@ export class CryptoCheckout implements OnInit {
 
   ngOnInit() {
     this.uuid = this.route.snapshot.paramMap.get('uuid') || '';
-    this.loadCryptoData();
-  }
+        this.paymentService.getCryptoDetails(this.uuid).subscribe(data => {
+        this.cryptoData = data;
+        console.log("🔥 ŠTA JE STIGLO SA BACKENDA:", data); 
+        this.isLoading = false;
+        this.startStatusPolling();
+    });
+}
 
-  loadCryptoData() {
+  /*loadCryptoData() {
     this.isLoading = true;
     this.paymentService.initiateCryptoPayment(this.uuid).subscribe({
       next: (data) => {
         this.cryptoData = data;
         this.isLoading = false;
 
-        this.startStatusPolling();
       },
       error: (err) => {
         alert("Greška pri inicijalizaciji kripto plaćanja");
@@ -45,7 +50,7 @@ export class CryptoCheckout implements OnInit {
         this.goBack();
       }
     });
-  }
+  }*/
 
   copyToClipboard(val: string) {
     navigator.clipboard.writeText(val);

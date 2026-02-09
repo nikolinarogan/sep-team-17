@@ -12,7 +12,9 @@ import repository.PaymentMethodRepository;
 import repository.PaymentTransactionRepository;
 import tools.AuditLogger; // Import tvog novog alata
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
@@ -83,6 +85,8 @@ public class GenericPaymentService {
                     auditLogger.logEvent("INITIATE_GENERIC_SUCCESS", "SUCCESS",
                             "External ID received: " + response.getExternalId());
 
+                    Map<String, Object> extras = new HashMap<>();
+
                     return PaymentInitResult.builder().redirectUrl(response.getRedirectUrl()).build();
                 }
             } catch (Exception e) {
@@ -146,5 +150,91 @@ public class GenericPaymentService {
                 .returnUrl(returnUrl)
                 .cancelUrl(tx.getFailedUrl())
                 .build();
+    }
+
+    public Map<String, Object> getDetails(String uuid, String methodName) {
+        auditLogger.logEvent("GET_DETAILS_START", "PENDING",
+                "Method: " + methodName + " | UUID: " + uuid);
+
+        // 1. Nađi konfiguraciju servisa (da dobijemo service_name, npr. 'psp-crypto')
+        PaymentMethod method = paymentMethodRepository.findByName(methodName)
+                .orElseThrow(() -> new RuntimeException("Nepoznat metod: " + methodName));
+
+        String serviceName = method.getServiceName();
+        if (serviceName == null || serviceName.isEmpty()) {
+            throw new RuntimeException("Service name nije definisan za: " + methodName);
+        }
+
+        // 2. Service Discovery (Nađi IP adresu i port mikroservisa)
+        List<ServiceInstance> instances = discoveryClient.getInstances(serviceName);
+        if (instances.isEmpty()) {
+            auditLogger.logSecurityAlert("INSTANCE_NOT_FOUND", "No instances for: " + serviceName);
+            throw new RuntimeException("Servis nije dostupan: " + serviceName);
+        }
+
+        // Jednostavan Load Balancing (Round Robin)
+        int index = Math.abs(counter.getAndIncrement()) % instances.size();
+        ServiceInstance instance = instances.get(index);
+        String baseUrl = instance.getUri().toString();
+
+        try {
+            // 3. Poziv Mikroservisa
+            // Gađamo endpoint: GET /api/connector/details/{uuid}
+            auditLogger.logEvent("MICROSERVICE_DETAILS_REQ", "SENDING", "To: " + baseUrl);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restClientBuilder.build()
+                    .get()
+                    .uri(baseUrl + "/api/connector/details/" + uuid)
+                    .retrieve()
+                    .body(Map.class); // Očekujemo Mapu kao odgovor
+
+            auditLogger.logEvent("GET_DETAILS_SUCCESS", "SUCCESS", "UUID: " + uuid);
+            return response;
+
+        } catch (Exception e) {
+            auditLogger.logEvent("GET_DETAILS_FAILED", "ERROR", "Reason: " + e.getMessage());
+            throw new RuntimeException("Neuspešno dohvatanje detalja od mikroservisa: " + e.getMessage());
+        }
+    }
+
+    public boolean checkTransactionStatus(String uuid, String methodName) {
+        // 1. Nađi podatke o metodi (da bismo znali ime servisa, npr. 'psp-crypto')
+        PaymentMethod method = paymentMethodRepository.findByName(methodName)
+                .orElseThrow(() -> new RuntimeException("Nepoznat metod: " + methodName));
+
+        String serviceName = method.getServiceName(); // npr. "psp-crypto-service"
+
+        // 2. Service Discovery (Tražimo instancu mikroservisa)
+        List<ServiceInstance> instances = discoveryClient.getInstances(serviceName);
+        if (instances.isEmpty()) {
+            System.err.println("Nema dostupnih instanci za servis: " + serviceName);
+            return false;
+        }
+
+        // Load Balancing (Round Robin)
+        int index = Math.abs(counter.getAndIncrement()) % instances.size();
+        String baseUrl = instances.get(index).getUri().toString();
+
+        try {
+            // 3. POZIV MIKROSERVISA
+            // Gađamo endpoint koji si definisala u CryptoConnectorController:
+            // @GetMapping("/check-status/{uuid}")
+
+            auditLogger.logEvent("MICROSERVICE_STATUS_CHECK", "SENDING", "UUID: " + uuid);
+
+            Boolean isPaid = restClientBuilder.build()
+                    .get()
+                    .uri(baseUrl + "/api/connector/check-status/" + uuid)
+                    .retrieve()
+                    .body(Boolean.class);
+
+            return isPaid != null && isPaid;
+
+        } catch (Exception e) {
+            System.err.println("Greška pri proveri statusa na mikroservisu: " + e.getMessage());
+            // Ako pukne veza, samo kažemo da nije plaćeno (korisnik će probati opet za 3 sekunde)
+            return false;
+        }
     }
 }
