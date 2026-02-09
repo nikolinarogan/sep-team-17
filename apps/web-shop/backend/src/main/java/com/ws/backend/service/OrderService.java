@@ -58,10 +58,10 @@ public class OrderService {
     @Value("${webshop.merchant.password}")
     private String merchantPassword;
 
-    @Value("https://localhost:8000/api/payments/init")
+    @Value("${psp.api.url}")
     private String pspApiUrl;
 
-    @Value("${psp.api.url}")
+    @Value("${webshop.frontend.url}")
     private String apiBase;
 
     static {
