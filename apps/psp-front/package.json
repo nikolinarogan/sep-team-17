@@ -4,6 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve --port 4201 --ssl --ssl-key server.key --ssl-cert server.crt",
+    "start:mreza": "ng serve --configuration=mreza --port 4201 --ssl --ssl-key server.key --ssl-cert server.crt",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"

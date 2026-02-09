@@ -44,6 +44,16 @@
               ],
               "outputHashing": "all"
             },
+
+            "mreza": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.mreza.ts"
+                }
+              ]
+            },
+                      
             "development": {
               "optimization": false,
               "extractLicenses": false,
@@ -60,7 +70,10 @@
             },
             "development": {
               "buildTarget": "psp-front:build:development"
-            }
+            },
+                  "mreza": {
+            "buildTarget": "psp-front:build:mreza"
+          }
           },
           "defaultConfiguration": "development"
         },
