@@ -28,7 +28,7 @@ export class CryptoCheckout implements OnInit {
 
   ngOnInit() {
     this.uuid = this.route.snapshot.paramMap.get('uuid') || '';
-        this.paymentService.getCryptoDetails(this.uuid).subscribe(data => {
+        this.paymentService.getCryptoDetails(this.uuid, 'CRYPTO').subscribe(data => {
         this.cryptoData = data;
         console.log("🔥 ŠTA JE STIGLO SA BACKENDA:", data); 
         this.isLoading = false;
@@ -66,7 +66,7 @@ export class CryptoCheckout implements OnInit {
     
     this.statusSubscription = interval(3000)
       .pipe(
-        switchMap(() => this.paymentService.checkCryptoStatus(this.uuid)),
+        switchMap(() => this.paymentService.checkCryptoStatus(this.uuid, 'CRYPTO')),
         takeWhile((res) => res.redirectUrl === null, true) 
       )
       .subscribe({

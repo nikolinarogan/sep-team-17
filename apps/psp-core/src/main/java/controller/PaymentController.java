@@ -7,10 +7,7 @@ import model.PaymentTransaction;
 import model.TransactionStatus;
 import repository.PaymentMethodRepository;
 import repository.PaymentTransactionRepository;
-import service.CardPaymentService;
-import service.CryptoPaymentService;
 import service.PaymentService;
-import service.QrPaymentService;
 import service.*;
 import tools.AuditLogger; 
 import jakarta.validation.Valid;
@@ -112,14 +109,8 @@ public class PaymentController {
             PaymentMethod methodConfig = paymentMethodRepository.findByName(methodName)
                     .orElseThrow(() -> new UnknownPaymentmethodException(methodName));
 
-            PaymentInitResult result;
-
-            if (methodConfig.getServiceName() != null && !methodConfig.getServiceName().isEmpty()) {
-                result = genericPaymentService.initiate(tx, methodName);
-            } else {
-                PaymentProvider provider = paymentRegistry.get(methodName);
-                result = provider.initiate(tx);
-            }
+            PaymentProvider provider = paymentRegistry.get(methodName);
+            PaymentInitResult result = provider.initiate(tx);
 
             auditLogger.logEvent("PAYMENT_METHOD_INIT_SUCCESS", "SUCCESS",
                     "UUID: " + uuid + " | Redirecting to provider.");
@@ -231,14 +222,14 @@ public class PaymentController {
         return ResponseEntity.ok(redirectUrl);
     }
 
-    @GetMapping("/checkout/{uuid}/crypto-details") // Ili PostMapping, svejedno
-    public ResponseEntity<Map<String, Object>> getCryptoDetails(@PathVariable String uuid) {
+    @GetMapping("/checkout/{uuid}/details/{methodName}") // Ili PostMapping, svejedno
+    public ResponseEntity<Map<String, Object>> getDetails(@PathVariable String uuid, @PathVariable String methodName) {
         // Ovde pozivaš mikroservis da ti ponovo vrati podatke (iz keša ili baze)
-        return ResponseEntity.ok(genericPaymentService.getDetails(uuid, "CRYPTO"));
+        return ResponseEntity.ok(genericPaymentService.getDetails(uuid, methodName));
     }
 
-    @GetMapping("/checkout/{uuid}/status")
-    public ResponseEntity<Map<String, Object>> checkStatus(@PathVariable String uuid) {
+    @GetMapping("/checkout/{uuid}/status/{methodName}")
+    public ResponseEntity<Map<String, Object>> checkPaymentStatus(@PathVariable String uuid, @PathVariable String methodName) {
 
         // 1. Prvo učitamo transakciju iz NAŠE baze (Core baza)
         PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
@@ -261,8 +252,7 @@ public class PaymentController {
         }
 
         // C) Ako je CREATED/PENDING, moramo pitati Mikroservis
-        // Ovde pretpostavljamo da je metoda CRYPTO (ili možeš izvući tx.getChosenMethod() ako si ga setovala)
-        boolean isConfirmed = genericPaymentService.checkTransactionStatus(uuid, "CRYPTO");
+        boolean isConfirmed = genericPaymentService.checkTransactionStatus(uuid, methodName);
 
         if (isConfirmed) {
             // 🎉 MIKROSERVIS KAŽE DA SU PARE LEGLE!
@@ -282,23 +272,10 @@ public class PaymentController {
             response.put("status", "SUCCESS");
             response.put("redirectUrl", tx.getSuccessUrl());
         } else {
-            // Još nije leglo
             response.put("status", "PENDING");
             response.put("redirectUrl", null);
         }
 
         return ResponseEntity.ok(response);
     }
-    /*
-
-    @GetMapping("/check-crypto-status/{uuid}")
-    public ResponseEntity<Map<String, String>> checkCryptoStatus(@PathVariable String uuid) {
-        String redirectUrl = cryptoPaymentService.checkPaymentStatus(uuid);
-
-        // Vraćamo JSON: { "redirectUrl": "https://..." } ili { "redirectUrl": null }
-        Map<String, String> response = new HashMap<>();
-        response.put("redirectUrl", redirectUrl);
-
-        return ResponseEntity.ok(response);
-    }*/
 }

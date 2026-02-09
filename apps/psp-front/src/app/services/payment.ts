@@ -28,23 +28,20 @@ export class Payment {
   return this.http.get<{ status: string }>(`${this.apiUrl}/payments/status/${uuid}`);
   }
 
-  checkCryptoStatus(uuid: string) {
-    return this.http.get<{ redirectUrl: string | null }>(`${this.apiUrl}/payments/checkout/${uuid}/status`);
+  checkCryptoStatus(uuid: string, methodName: string) {
+    return this.http.get<{ redirectUrl: string | null }>(`${this.apiUrl}/payments/checkout/${uuid}/status/${methodName}`);
   }
 
-  getCryptoDetails(uuid: string) {
-  return this.http.get<any>(`${this.apiUrl}/payments/checkout/${uuid}/crypto-details`);
+  getCryptoDetails(uuid: string, methodName: string) {
+  return this.http.get<any>(`${this.apiUrl}/payments/checkout/${uuid}/details/${methodName}`);
   }
 
-/**
- * Generički poziv za inicijalizaciju plaćanja bilo kojom metodom.
- */
 initiatePayment(uuid: string, methodName: string): Observable<{ paymentUrl?: string; qrData?: string }> {
   return this.http.post<{ paymentUrl?: string; qrData?: string }>(
     `${this.apiUrl}/payments/checkout/${uuid}/init/${methodName}`,
     {}
   ).pipe(
-    timeout(30000)  // 30 sekundi - ako backend ne odgovori, Observable baca TimeoutError
+    timeout(30000)  
   );
 }
 }
