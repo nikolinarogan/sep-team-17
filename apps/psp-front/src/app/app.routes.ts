@@ -12,7 +12,7 @@ import { AdminMfa } from './pages/admin-mfa/admin-mfa';
 
 export const routes: Routes = [
     { path: 'checkout/:uuid', component: Checkout },
-    { path: 'checkout/:uuid/crypto', component: CryptoCheckout },
+    { path: 'crypto-checkout/:uuid', component: CryptoCheckout },
 
     { path: '', redirectTo: 'admin/login', pathMatch: 'full' },
     { path: 'admin', redirectTo: 'admin/dashboard', pathMatch: 'full' },

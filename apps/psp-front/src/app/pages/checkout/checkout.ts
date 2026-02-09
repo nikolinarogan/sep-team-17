@@ -73,10 +73,8 @@ selectMethod(method: PaymentMethod) {
       this.initiateSubscription.unsubscribe();
     }
 
-    if (method.name === 'CRYPTO') {
-      this.router.navigate(['/checkout', this.uuid, 'crypto']);
-      return; 
-    }
+    console.log(method);
+
     this.initiateSubscription = this.paymentService.initiatePayment(this.uuid, method.name).subscribe({
       next: (response: any) => {
         this.initiateSubscription = null;
@@ -86,7 +84,6 @@ selectMethod(method: PaymentMethod) {
           this.isLoading = false;
           return;
         }
-
         if (response?.paymentUrl) {
           window.location.href = response.paymentUrl;
         } else if (response?.qrData) {
@@ -143,7 +140,7 @@ selectMethod(method: PaymentMethod) {
   }
 
   selectCryptoPayment() {
-  this.router.navigate(['/checkout', this.uuid, 'crypto']);
+  this.router.navigate(['/checkout-crypto', this.uuid]);
   }
 }
 

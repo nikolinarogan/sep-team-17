@@ -14,9 +14,15 @@
     </div>
 
     
-    <div class="text-center mb-4 bg-light p-3 rounded">
-      <img [src]="cryptoData.qrCodeUrl" alt="QR Code" class="img-fluid rounded shadow-sm">
-    </div>
+    <div class="text-center mb-4 bg-light p-3 rounded d-flex justify-content-center">
+        <qrcode 
+          *ngIf="cryptoData.qrCodeUrl" 
+          [qrdata]="cryptoData.qrCodeUrl" 
+          [width]="256" 
+          [errorCorrectionLevel]="'M'"
+          [elementType]="'img'">
+        </qrcode>
+      </div>
 
     <div class="mb-3">
       <label class="form-label text-muted small mb-1">Iznos u BTC</label>
