@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { LoginRequestDTO } from '../../models/psp-models';
 import { Auth } from '../../services/auth';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -11,7 +11,7 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './admin-login.html',
   styleUrl: './admin-login.css',
 })
-export class AdminLogin {
+export class AdminLogin implements OnInit {
   credentials: LoginRequestDTO = {
     username: '',
     password: ''
@@ -20,30 +20,59 @@ export class AdminLogin {
   errorMessage = '';
   isLoading = false;
 
-  constructor(private authService: Auth, private router: Router) {}
+  constructor(
+    private authService: Auth,
+    private router: Router,
+    private route: ActivatedRoute
+  ) {}
 
-  onSubmit() {
-    this.isLoading = true;
-    this.errorMessage = '';
-
-    this.authService.login(this.credentials).subscribe({
-      next: (response: string) => {
-        console.log('Odgovor:', response);
-        if (response === 'Uspešna prijava.') {
-           this.router.navigate(['/admin/dashboard']);
-        }
-        this.isLoading = false;
-      },
-      error: (err) => {
-        console.error('Greška:', err);
-        this.isLoading = false;
-        
-        if (err.status === 401) {
-          this.errorMessage = err.error || 'Pogrešni podaci.';
-        } else {
-          this.errorMessage = 'Greška na serveru. Proveri da li backend radi.';
-        }
+  ngOnInit(): void {
+    this.route.queryParams.subscribe((params) => {
+      if (params['idle'] === 'true') {
+        this.errorMessage = 'Sesija je istekla zbog neaktivnosti (15 min). Molimo prijavite se ponovo.';
+      } else if (params['expired'] === 'true') {
+        this.errorMessage = 'Sesija je istekla. Molimo prijavite se ponovo.';
       }
     });
   }
+
+  onSubmit() {
+  this.isLoading = true;
+  this.errorMessage = '';
+
+  this.authService.login(this.credentials).subscribe({
+    next: (response) => {
+      if (response.mustChangePassword) {
+        this.isLoading = false;
+        this.router.navigate(['/admin/change-password'], {
+          queryParams: {
+            username: this.credentials.username,
+            firstTime: 'true'
+          }
+        });
+      } else if (response.status === 'MFA_REQUIRED') {
+        this.isLoading = false;
+        this.router.navigate(['/admin/mfa'], {
+          queryParams: { username: response.username }
+        });
+      } else if (response.token) {
+        console.log('Login uspešan, token sačuvan.');
+        this.router.navigate(['/admin/dashboard']);
+      } else {
+        this.errorMessage = 'Neočekivan odgovor servera.';
+      }
+      this.isLoading = false;
+    },
+    error: (err) => {
+      this.isLoading = false;
+      if (err.status === 401) {
+        this.errorMessage = 'Pogrešno korisničko ime ili lozinka.';
+      } else if (err.status === 429) {
+        this.errorMessage = typeof err.error === 'string' ? err.error : 'Prijava onemogućena. Previše neuspešnih pokušaja. Pokušajte ponovo za 30 minuta.';
+      } else {
+        this.errorMessage = 'Sistem nije dostupan.';
+      }
+    }
+  });
+}
 }

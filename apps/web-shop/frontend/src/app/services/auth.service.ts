@@ -27,6 +27,19 @@ export class AuthService {
     );
   }
 
+  verifyMfa(email: string, code: string): Observable<{ message: string; token: string }> {
+    return this.http.post<{ message: string; token: string }>(`${this.apiUrl}/verify-mfa`, {
+      email,
+      code
+    }).pipe(
+      tap(response => {
+        if (response?.token) {
+          localStorage.setItem('token', response.token);
+        }
+      })
+    );
+  }
+
   getToken(): string | null {
     return localStorage.getItem('token');
   }

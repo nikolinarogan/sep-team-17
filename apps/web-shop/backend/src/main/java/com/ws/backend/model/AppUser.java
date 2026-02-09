@@ -43,6 +43,18 @@ public class AppUser  {
     @Column(nullable = false)
     private Role role;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    @Column(name = "mfa_code")
+    private String mfaCode;
+
+    @Column(name = "mfa_expiry")
+    private LocalDateTime mfaExpiry;
+
     public Long getId() {
         return id;
     }
@@ -121,5 +133,21 @@ public class AppUser  {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
     }
 }

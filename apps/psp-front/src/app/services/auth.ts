@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { LoginRequestDTO } from '../models/psp-models';
 
 @Injectable({
@@ -11,10 +11,50 @@ export class Auth {
 
   constructor(private http: HttpClient) { }
 
-  login(credentials: LoginRequestDTO): Observable<string> {
-    return this.http.post(`${this.apiUrl}/login`, credentials, { 
-      responseType: 'text' 
-    });
+  login(credentials: LoginRequestDTO): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/login`, credentials).pipe(
+      tap(response => {
+        // Ako bek vrati token, sačuvaj ga
+        if (response && response.token) {
+          localStorage.setItem('psp_admin_token', response.token);
+        }
+      })
+    );
   }
-  
+
+  verifyMfa(username: string, code: string): Observable<{ message: string; token: string }> {
+    return this.http.post<{ message: string; token: string }>(`${this.apiUrl}/verify-mfa`, {
+      username,
+      code
+    }).pipe(
+      tap(response => {
+        if (response?.token) {
+          localStorage.setItem('psp_admin_token', response.token);
+        }
+      })
+    );
+  }
+
+  getToken(): string | null {
+    return localStorage.getItem('psp_admin_token');
+  }
+
+  logout(): void {
+    localStorage.removeItem('psp_admin_token');
+  }
+
+  isAuthenticated(): boolean {
+    return !!this.getToken();
+  }
+
+  changePassword(data: {
+    username: string;
+    oldPassword?: string;
+    newPassword: string;
+  }): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(
+      `${this.apiUrl}/change-password`,
+      data
+    );
+  }
 }

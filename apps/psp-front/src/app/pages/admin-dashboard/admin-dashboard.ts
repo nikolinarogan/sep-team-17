@@ -34,7 +34,12 @@ export class AdminDashboard implements OnInit {
       next: (data) => {
         this.merchants = data;
       },
-      error: (err) => console.error('Greška pri učitavanju prodavaca:', err)
+      error: (err) => {
+        if (err.status === 403) {
+          alert('Nemate dozvolu za pregled prodavaca.');
+        }
+        console.error('Greška pri učitavanju prodavaca:', err);
+      }
     });
   }
 
@@ -58,7 +63,11 @@ export class AdminDashboard implements OnInit {
         this.isLoading = false;
       },
       error: (err) => {
-        alert('Došlo je do greške pri kreiranju prodavca.');
+        if (err.status === 403) {
+          alert('Nemate dozvolu za kreiranje prodavca.');
+        } else {
+          alert('Došlo je do greške pri kreiranju prodavca.');
+        }
         console.error(err);
         this.isLoading = false;
       }
@@ -66,6 +75,10 @@ export class AdminDashboard implements OnInit {
   }
 
   logout() {
+    localStorage.removeItem('psp_admin_token');
+    
+    console.log('Admin odjavljen, token obrisan.');
+
     this.router.navigate(['/admin/login']);
   }
 

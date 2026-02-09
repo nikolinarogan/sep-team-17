@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -34,6 +35,7 @@ public class AuthService {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Email is already registered");
         }
+        validatePassword(request.getPassword(), "Lozinka");
 
         AppUser user = new AppUser();
         user.setName(request.getName());
@@ -80,8 +82,20 @@ public class AuthService {
 
     public AppUser loginCheckCredentials(String email, String rawPassword) {
         return userRepository.findByEmail(email)
-                .filter(user -> passwordEncoder.matches(rawPassword, user.getPassword()))
+                .filter(user -> {
+                    if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+                        return false;
+                    }
+                    user.setLastLoginAt(LocalDateTime.now());
+                    userRepository.save(user);
+                    return true;
+                })
                 .orElse(null);
+    }
+
+    public Optional<AppUser> verifyPassword(String email, String rawPassword) {
+        return userRepository.findByEmail(email)
+                .filter(user -> passwordEncoder.matches(rawPassword, user.getPassword()));
     }
 
     public String generateToken(AppUser user) {
@@ -98,6 +112,10 @@ public class AuthService {
             }
         }
 
+        if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Nova lozinka ne sme biti ista kao prethodna.");
+        }
+
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
 
         if (user.getRole() == Role.ADMIN && !user.getHasChangedPassword()) {
@@ -105,5 +123,14 @@ public class AuthService {
         }
 
         return userRepository.save(user);
+    }
+
+    private void validatePassword(String password, String fieldName) {
+        if (password == null || password.length() < 12) {
+            throw new IllegalArgumentException(fieldName + " mora imati najmanje 12 karaktera");
+        }
+        if (!password.matches("^(?=.*[a-zA-Z])(?=.*[0-9]).+$")) {
+            throw new IllegalArgumentException(fieldName + " mora sadržati i slova i brojeve");
+        }
     }
 }

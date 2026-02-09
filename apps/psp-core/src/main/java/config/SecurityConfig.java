@@ -1,49 +1,78 @@
 package config;
 
+import jwt.JwtAuthFilter;
+import jwt.JwtService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import repository.AdminRepository;
+import service.SessionActivityService;
 
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
+
+    private final JwtService jwtService;
+    private final AdminRepository adminRepository;
+    private final SessionActivityService sessionActivityService;
+
+    public SecurityConfig(JwtService jwtService, AdminRepository adminRepository,
+                          SessionActivityService sessionActivityService) {
+        this.jwtService = jwtService;
+        this.adminRepository = adminRepository;
+        this.sessionActivityService = sessionActivityService;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()
-                );
+                        // JAVNE RUTE (bez tokena)
+                        .requestMatchers("/api/admin/login").permitAll()
+                        .requestMatchers("/api/admin/verify-mfa").permitAll()
+                        .requestMatchers("/api/admin/change-password").permitAll()
+                        .requestMatchers("/api/payments/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/payment-methods").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // ZAŠTIĆENE RUTE (zahtevaju JWT)
+                        .requestMatchers("/api/admin/**").authenticated()
+                        .requestMatchers("/api/merchants/**").authenticated()
+                        .requestMatchers("/api/payment-methods/**").authenticated()
+
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(new JwtAuthFilter(jwtService, adminRepository, sessionActivityService), UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-
-        // Dozvoli Angular Frontend (HTTPS na portu 4201)
         configuration.setAllowedOrigins(List.of("https://localhost:4201"));
-
-        // Dozvoli sve HTTP metode (GET, POST, OPTIONS...)
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-
-        // Dozvoli sve hedere (Content-Type, Authorization...)
-        configuration.setAllowedHeaders(List.of("*"));
-
-        // Dozvoli credentials (obavezno ako koristiš https i kolačiće/auth)
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With"));
         configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

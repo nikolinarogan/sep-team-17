@@ -1,5 +1,8 @@
 package com.ws.backend.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -8,6 +11,10 @@ import lombok.Setter;
 public class ChangePasswordDTO {
     private String email;
     private String oldPassword;
+
+    @NotBlank(message = "Nova lozinka je obavezna")
+    @Size(min = 12, message = "Lozinka mora imati najmanje 12 karaktera")
+    @Pattern(regexp = "^(?=.*[a-zA-Z])(?=.*[0-9]).+$", message = "Lozinka mora sadržati i slova i brojeve")
     private String newPassword;
 
     public String getEmail() {

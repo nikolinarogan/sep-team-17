@@ -2,6 +2,7 @@ package com.example.api_gateway;
 
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
@@ -13,6 +14,7 @@ import javax.net.ssl.*;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.security.cert.X509Certificate;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -82,24 +84,71 @@ public class PspProxyController {
             }
         };
 
-        return restClientBuilder
+//        return restClientBuilder
+//                .requestFactory(factory)
+//                .build()
+//                .method(HttpMethod.valueOf(request.getMethod()))
+//                .uri(baseUrl + fullPath)
+//                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+//                .body(body != null ? body : new byte[0])
+//                .exchange((req, res) -> {
+//                    org.springframework.http.HttpHeaders filteredHeaders = new org.springframework.http.HttpHeaders();
+//                    res.getHeaders().forEach((headerName, headerValues) -> {
+//                        if (!headerName.equalsIgnoreCase("Transfer-Encoding")) {
+//                            filteredHeaders.addAll(headerName, headerValues);
+//                        }
+//                    });
+//
+//                    return ResponseEntity.status(res.getStatusCode())
+//                            .headers(filteredHeaders)
+//                            .body(res.getBody().readAllBytes());
+//                });
+        HttpHeaders forwardHeaders = copyForwardHeaders(request);
+        if (forwardHeaders.getContentType() == null && body != null && body.length > 0) {
+            forwardHeaders.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        }
+
+        var spec = restClientBuilder
                 .requestFactory(factory)
                 .build()
                 .method(HttpMethod.valueOf(request.getMethod()))
                 .uri(baseUrl + fullPath)
-                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .body(body != null ? body : new byte[0])
-                .exchange((req, res) -> {
-                    org.springframework.http.HttpHeaders filteredHeaders = new org.springframework.http.HttpHeaders();
-                    res.getHeaders().forEach((headerName, headerValues) -> {
-                        if (!headerName.equalsIgnoreCase("Transfer-Encoding")) {
-                            filteredHeaders.addAll(headerName, headerValues);
-                        }
-                    });
+                .headers(h -> h.addAll(forwardHeaders));
 
-                    return ResponseEntity.status(res.getStatusCode())
-                            .headers(filteredHeaders)
-                            .body(res.getBody().readAllBytes());
-                });
+        if (body != null && body.length > 0) {
+            spec.body(body);
+        } else if (!"GET".equalsIgnoreCase(request.getMethod()) && !"HEAD".equalsIgnoreCase(request.getMethod())) {
+            spec.body(new byte[0]);
+        }
+
+        return spec.exchange((req, res) -> {
+            org.springframework.http.HttpHeaders filteredHeaders = new org.springframework.http.HttpHeaders();
+            res.getHeaders().forEach((headerName, headerValues) -> {
+                if (!headerName.equalsIgnoreCase("Transfer-Encoding")) {
+                    filteredHeaders.addAll(headerName, headerValues);
+                }
+            });
+            return ResponseEntity.status(res.getStatusCode())
+                    .headers(filteredHeaders)
+                    .body(res.getBody().readAllBytes());
+        });
+    }
+
+    private HttpHeaders copyForwardHeaders(HttpServletRequest request) {
+        HttpHeaders headers = new HttpHeaders();
+        Enumeration<String> names = request.getHeaderNames();
+        if (names != null) {
+            while (names.hasMoreElements()) {
+                String name = names.nextElement();
+                if (!name.equalsIgnoreCase("Host") && !name.equalsIgnoreCase("Content-Length")
+                        && !name.equalsIgnoreCase("Transfer-Encoding") && !name.equalsIgnoreCase("Connection")) {
+                    Enumeration<String> values = request.getHeaders(name);
+                    while (values.hasMoreElements()) {
+                        headers.add(name, values.nextElement());
+                    }
+                }
+            }
+        }
+        return headers;
     }
 }

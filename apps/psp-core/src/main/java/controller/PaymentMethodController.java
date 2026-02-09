@@ -2,6 +2,7 @@ package controller;
 
 import dto.PaymentMethodRequestDTO;
 import model.PaymentMethod;
+import org.springframework.security.access.prepost.PreAuthorize;
 import repository.PaymentMethodRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,7 +16,7 @@ import java.util.List;
 public class PaymentMethodController {
 
     private final PaymentMethodRepository paymentMethodRepository;
-    private final AuditLogger auditLogger; // Dodato
+    private final AuditLogger auditLogger;
 
     public PaymentMethodController(PaymentMethodRepository paymentMethodRepository,
                                    AuditLogger auditLogger) {
@@ -23,15 +24,14 @@ public class PaymentMethodController {
         this.auditLogger = auditLogger;
     }
 
-    // Vraća sve dostupne metode
     @GetMapping
     public ResponseEntity<List<PaymentMethod>> getAllMethods() {
         auditLogger.logEvent("VIEW_PAYMENT_METHODS", "SUCCESS", "Requested list of all payment methods");
         return ResponseEntity.ok(paymentMethodRepository.findAll());
     }
 
-    // Dodaje novi globalni metod (npr. CRYPTO)
     @PostMapping
+    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<PaymentMethod> createMethod(@RequestBody PaymentMethodRequestDTO request) {
         auditLogger.logEvent("CREATE_PAYMENT_METHOD_START", "PENDING", "Method Name: " + request.getName());
 
@@ -50,8 +50,8 @@ public class PaymentMethodController {
         return ResponseEntity.ok(saved);
     }
 
-    // Brisanje metoda
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('SUPERADMIN')")
     public ResponseEntity<Void> deleteMethod(@PathVariable Long id) {
         auditLogger.logEvent("DELETE_PAYMENT_METHOD_START", "PENDING", "Method ID: " + id);
 

@@ -3,6 +3,7 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../app/services/auth.service';
+import { IdleService } from '../../app/services/idle.service';
 
 @Component({
   selector: 'app-login',
@@ -21,7 +22,8 @@ export class LoginComponent implements OnInit {
     private fb: FormBuilder,
     private authService: AuthService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private idleService: IdleService
   ) {
     this.loginForm = this.fb.group({
       email: ['', [Validators.required, Validators.email]],
@@ -37,9 +39,11 @@ export class LoginComponent implements OnInit {
     }
 
     // Proveri da li je korisnik preusmeren zbog isteka tokena
-    this.route.queryParams.subscribe(params => {
-      if (params['expired'] === 'true') {
-        this.infoMessage = 'Your session has expired. Please log in again.';
+   this.route.queryParams.subscribe(params => {
+      if (params['idle'] === 'true') {
+        this.infoMessage = 'Sesija je istekla zbog neaktivnosti. Molimo prijavite se ponovo.';
+      } else if (params['expired'] === 'true') {
+        this.infoMessage = 'Sesija je istekla. Molimo prijavite se ponovo.';
       }
     });
   }
@@ -60,9 +64,16 @@ export class LoginComponent implements OnInit {
                 firstTime: 'true'
               }
             });
+          } else if (response.status === 'MFA_REQUIRED') {
+            // Admin MFA verification required
+            this.isLoading = false;
+            this.router.navigate(['/mfa'], {
+              queryParams: { email: response.email }
+            });
           } else if (response.token) {
             // Successful login
             this.isLoading = false;
+            this.idleService.startWatching();
             this.router.navigate(['/home']);
           } else {
             this.errorMessage = response.message || 'Login failed';
@@ -70,7 +81,11 @@ export class LoginComponent implements OnInit {
           }
         },
         error: (error) => {
-          this.errorMessage = error.error?.message || error.error || 'Login failed. Please try again.';
+          const msg = error.error?.message || error.error || 'Login failed. Please try again.';
+          this.errorMessage = typeof msg === 'string' ? msg : String(msg);
+          if (error.status === 429) {
+            this.infoMessage = '';
+          }
           this.isLoading = false;
         }
       });

@@ -20,8 +20,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         // Ako je token istekao (401 Unauthorized), obriši token i preusmeri na login
         if (error.status === 401) {
           authService.logout();
+          const msg = error.error?.message || '';
+          const isIdle = msg.toLowerCase().includes('inactivity');
           router.navigate(['/login'], {
-            queryParams: { expired: 'true' }
+            queryParams: { expired: 'true', idle: isIdle ? 'true' : undefined }
           });
         }
         return throwError(() => error);
