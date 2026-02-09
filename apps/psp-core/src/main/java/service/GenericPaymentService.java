@@ -24,7 +24,7 @@ public class GenericPaymentService {
     private final RestClient.Builder restClientBuilder;
     private final PaymentMethodRepository paymentMethodRepository;
     private final PaymentTransactionRepository transactionRepository;
-    private final AuditLogger auditLogger; // Dodato
+    private final AuditLogger auditLogger;
 
     private final AtomicInteger counter = new AtomicInteger(0);
 

@@ -90,6 +90,9 @@ public class PaymentController {
     /**
      * UNIVERZALNI ENDPOINT ZA POKRETANJE PLAĆANJA.
      */
+    /**
+     * UNIVERZALNI ENDPOINT ZA POKRETANJE PLAĆANJA PREKO MIKROSERVISA.
+     */
     @PostMapping("/checkout/{uuid}/init/{methodName}")
     public ResponseEntity<Map<String, Object>> initiatePayment(
             @PathVariable String uuid,
@@ -106,11 +109,18 @@ public class PaymentController {
                 });
 
         try {
+
             PaymentMethod methodConfig = paymentMethodRepository.findByName(methodName)
                     .orElseThrow(() -> new UnknownPaymentmethodException(methodName));
 
-            PaymentProvider provider = paymentRegistry.get(methodName);
-            PaymentInitResult result = provider.initiate(tx);
+            PaymentInitResult result;
+
+            if (methodConfig.getServiceName() != null && !methodConfig.getServiceName().isEmpty()) {
+                result = genericPaymentService.initiate(tx, methodName);
+            } else {
+                PaymentProvider provider = paymentRegistry.get(methodName);
+                result = provider.initiate(tx);
+            }
 
             auditLogger.logEvent("PAYMENT_METHOD_INIT_SUCCESS", "SUCCESS",
                     "UUID: " + uuid + " | Redirecting to provider.");
@@ -119,19 +129,14 @@ public class PaymentController {
             if (result.getRedirectUrl() != null) {
                 response.put("paymentUrl", result.getRedirectUrl());
             }
-            if (result.getQrData() != null) {
-                response.put("qrData", result.getQrData());
-            }
+
             return ResponseEntity.ok(response);
 
-        } catch (UnknownPaymentmethodException e) {
-            auditLogger.logSecurityAlert("UNKNOWN_METHOD_REQUEST", "Method: " + methodName);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             auditLogger.logEvent("PAYMENT_METHOD_INIT_FAILED", "ERROR",
                     "UUID: " + uuid + " | Error: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(Map.of("error", "Servis trenutno nije dostupan: " + e.getMessage(), "retryable", true));
+                    .body(Map.of("error", "Servis trenutno nije dostupan: " + e.getMessage()));
         }
     }
 

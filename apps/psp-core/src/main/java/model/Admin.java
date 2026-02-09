@@ -29,7 +29,7 @@ public class Admin {
     @Column(name = "last_name")
     private String lastName;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private boolean active = true;
 
     @Column(name = "last_login_at")
