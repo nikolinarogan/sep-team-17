@@ -61,7 +61,7 @@ public class OrderService {
     @Value("https://localhost:8000/api/payments/init")
     private String pspApiUrl;
 
-    @Value("${webshop.frontend.url}")
+    @Value("${psp.api.url}")
     private String apiBase;
 
     static {
