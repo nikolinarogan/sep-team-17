@@ -48,8 +48,7 @@ public class MerchantService {
      */
     @Transactional
     public void updateMerchantServices(String merchantId, String password, List<MerchantConfigDTO> configs) {
-        auditLogger.logEvent("MERCHANT_CONFIG_UPDATE_ATTEMPT", "PENDING", "Merchant: " + merchantId);
-
+        auditLogger.logEvent("MERCHANT_CONFIG_UPDATE", "ATTEMPT", "MerchantID: " + merchantId);
         Merchant merchant = merchantRepository.findByMerchantId(merchantId)
                 .orElseThrow(() -> {
                     auditLogger.logSecurityAlert("INVALID_MERCHANT_ACCESS", "Attempted config update for non-existent merchant: " + merchantId);

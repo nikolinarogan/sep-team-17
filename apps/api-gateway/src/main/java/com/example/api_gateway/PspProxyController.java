@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClient;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import tools.AuditLogger;
 
 import javax.net.ssl.*;
 import java.io.IOException;
@@ -24,21 +25,29 @@ public class PspProxyController {
 
     private final RestClient.Builder restClientBuilder;
     private final DiscoveryClient discoveryClient;
+    private final AuditLogger auditLogger;
 
     private final AtomicInteger requestCounter = new AtomicInteger(0);
 
-    public PspProxyController(RestClient.Builder restClientBuilder, DiscoveryClient discoveryClient) {
+    public PspProxyController(RestClient.Builder restClientBuilder, DiscoveryClient discoveryClient, AuditLogger auditLogger) {
         this.restClientBuilder = restClientBuilder;
         this.discoveryClient = discoveryClient;
+        this.auditLogger = auditLogger;
     }
 
     // Promenjeno sa /api/payments/** na /api/** da bi hvatali sve rute (admin, merchants, itd.)
     @RequestMapping(value = "/api/**")
     public ResponseEntity<?> proxyRequest(HttpServletRequest request, @RequestBody(required = false) byte[] body) {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+
+        auditLogger.logEvent(request, "GATEWAY_RECEIVE", "START", "Method: " + method + " | Path: " + path);
+
         // 1. Pronalaženje servisa
         List<ServiceInstance> instances = discoveryClient.getInstances("PSP-CORE");
 
         if (instances.isEmpty()) {
+            auditLogger.logSecurityAlert(request, "GATEWAY_FORWARD_FAIL", "PSP-CORE servis nije dostupan na Eureki");
             return ResponseEntity.status(503).body("PSP-CORE servis nije dostupan na Eureki");
         }
 
@@ -48,8 +57,8 @@ public class PspProxyController {
 
         ServiceInstance instance = instances.get(instanceIndex);
 
-        String path = request.getRequestURI();
         System.out.println("GATEWAY -> " + request.getMethod() + " " + path + " prosleđujem na instancu port: " + instance.getPort());
+        auditLogger.logEvent(request, "GATEWAY_FORWARD", "PENDING", "Routing to port: " + instance.getPort());
 
         String baseUrl = instance.getUri().toString();
         String query = request.getQueryString();
@@ -121,17 +130,23 @@ public class PspProxyController {
             spec.body(new byte[0]);
         }
 
-        return spec.exchange((req, res) -> {
-            org.springframework.http.HttpHeaders filteredHeaders = new org.springframework.http.HttpHeaders();
-            res.getHeaders().forEach((headerName, headerValues) -> {
-                if (!headerName.equalsIgnoreCase("Transfer-Encoding")) {
-                    filteredHeaders.addAll(headerName, headerValues);
-                }
+        try {
+            return spec.exchange((req, res) -> {
+                auditLogger.logEvent(request, "GATEWAY_RESPONSE", res.getStatusCode().toString(), "Path: " + path);
+                org.springframework.http.HttpHeaders filteredHeaders = new org.springframework.http.HttpHeaders();
+                res.getHeaders().forEach((headerName, headerValues) -> {
+                    if (!headerName.equalsIgnoreCase("Transfer-Encoding")) {
+                        filteredHeaders.addAll(headerName, headerValues);
+                    }
+                });
+                return ResponseEntity.status(res.getStatusCode())
+                        .headers(filteredHeaders)
+                        .body(res.getBody().readAllBytes());
             });
-            return ResponseEntity.status(res.getStatusCode())
-                    .headers(filteredHeaders)
-                    .body(res.getBody().readAllBytes());
-        });
+        } catch (Exception e) {
+            auditLogger.logSecurityAlert(request, "GATEWAY_CRITICAL_FAIL", e.getMessage());
+            throw e;
+        }
     }
 
     private HttpHeaders copyForwardHeaders(HttpServletRequest request) {
