@@ -1,21 +1,54 @@
-spring:
-  application:
-    name: registry
-server:
-  port: 8761
-  ssl:
-    enabled: true
-    key-store: classpath:psp-keystore.p12
-    key-store-password: ${KEY_STORE_PASSWORD}
-    key-store-type: PKCS12
-
-eureka:
-  instance:
-    hostname: ${EUREKA_HOST:localhost}
-    secure-port-enabled: true
-    non-secure-port-enabled: false
-  client:
-    register-with-eureka: false
-    fetch-registry: false
-    service-url:
-      defaultZone: https://${eureka.instance.hostname}:${server.port}/eureka/
+spring.application.name=psp-paypal
+  
+  # -----------------------------------------------------------
+  # PORT = 0 (Jako bitno za više instanci!)
+  # Ovo znači: "Daj mi bilo koji slobodan port (npr. 5001, 5823...)"
+  # -----------------------------------------------------------
+server.port=0
+  
+  # -----------------------------------------------------------
+  # SSL PODEŠAVANJA (Mora, jer ti je Registry na HTTPS)
+  # -----------------------------------------------------------
+server.ssl.enabled=true
+server.ssl.key-store=classpath:psp-keystore.p12
+server.ssl.key-store-password=${KEY_STORE_PASSWORD}
+server.ssl.key-store-type=PKCS12
+server.ssl.key-alias=psp
+  
+  # Truststore (da veruje Eureki i Gateway-u)
+server.ssl.trust-store=classpath:truststore.jks
+server.ssl.trust-store-password=${TRUST_PASS}
+server.ssl.trust-store-type=PKCS12
+  
+  # -----------------------------------------------------------
+  # EUREKA KLIJENT (Ovo je magija za povezivanje)
+  # -----------------------------------------------------------
+  
+  # 1. Gde je Eureka? (Uvek na TVOJOJ IP adresi)
+eureka.client.service-url.defaultZone=https://${EUREKA_HOST:localhost}:8761/eureka/
+  
+  # 2. Kako se ovaj servis predstavlja Eureki?
+eureka.instance.prefer-ip-address=true
+  
+  # 3. Koja je IP adresa OVOG RAČUNARA?
+eureka.instance.hostname=${MY_IP_ADDRESS:localhost}
+eureka.instance.ip-address=${MY_IP_ADDRESS:localhost}
+  
+  # 4. Jedinstveni ID (da Eureka razlikuje tvoju instancu od njene)
+eureka.instance.instance-id=${spring.application.name}:${random.uuid}
+  
+  # Sigurni portovi
+eureka.instance.secure-port-enabled=true
+eureka.instance.non-secure-port-enabled=false
+  
+  # TLS za Eureku (jer je Eureka HTTPS)
+eureka.client.tls.enabled=true
+eureka.client.tls.trust-store=classpath:truststore.jks
+eureka.client.tls.trust-store-password=${TRUST_PASS}
+eureka.client.tls.trust-store-type=PKCS12
+  
+  # -----------------------------------------------------------
+  # PAYPAL CREDENTIALS
+  # -----------------------------------------------------------
+PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
