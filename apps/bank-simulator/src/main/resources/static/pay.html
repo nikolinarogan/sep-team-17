@@ -28,6 +28,7 @@
         button:hover { background-color: #218838; }
         .error { color: red; font-size: 13px; margin-top: 5px; display: none; text-align: center;}
         .success { color: green; font-size: 13px; margin-top: 5px; display: none; text-align: center;}
+        #pan { letter-spacing: 2px; }
     </style>
 </head>
 <body>
@@ -53,7 +54,7 @@
 
         <div class="form-group">
             <label>Card Number (PAN)</label>
-            <input type="text" id="pan" placeholder="1234567812345678" maxlength="16" required>
+            <input type="text" id="pan" placeholder="1234567812345678" maxlength="19" required>
         </div>
 
         <div class="row">
@@ -87,102 +88,102 @@
         return (nSum % 10 == 0);
     }
 
-    // 1. Uzimamo Payment ID iz URL-a
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentIdFromUrl = urlParams.get('paymentId');
+    document.getElementById('pan').addEventListener('input', function (e) {
+        let target = e.target;
+        let value = target.value.replace(/\D/g, '').substring(0, 16); // Samo brojevi, max 16
+        let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value; // Dodaj razmak na svaka 4 broja
+        target.value = formattedValue;
+    });
 
-    if (paymentIdFromUrl) {
-        document.getElementById('paymentId').value = paymentIdFromUrl;
-    } else {
-        document.getElementById('statusMessage').innerText = "Greška: Nedostaje ID transakcije!";
+    document.getElementById('expirationDate').addEventListener('input', function (e) {
+        let target = e.target;
+        let value = target.value.replace(/\D/g, '').substring(0, 4);
+        if (value.length >= 3) {
+            target.value = value.substring(0, 2) + '/' + value.substring(2, 4);
+        } else {
+            target.value = value;
+        }
+    });
+    // --- 3. INICIJALIZACIJA ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentId = urlParams.get('paymentId');
+
+    if (!paymentId) {
+        document.getElementById('statusMessage').innerText = "Security Error: Missing Transaction ID.";
         document.getElementById('statusMessage').style.display = "block";
         document.getElementById('payButton').disabled = true;
+    } else {
+        document.getElementById('paymentId').value = paymentId;
     }
 
-    // 2. Slanje podataka na Backend
+    // --- 4. SLANJE PODATAKA ---
     document.getElementById('paymentForm').addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        // Definišemo promenljive ODMAH na početku da bismo mogli da ih koristimo
-        const panValue = document.getElementById('pan').value;
+        const btn = document.getElementById('payButton');
         const statusDiv = document.getElementById('statusMessage');
         const successDiv = document.getElementById('successMessage');
-        const btn = document.getElementById('payButton');
 
-        // Reset poruka
+        // Očisti poruke
         statusDiv.style.display = 'none';
         successDiv.style.display = 'none';
 
-        // Validacija pre slanja
-        if (!luhnCheck(panValue)) {
-            statusDiv.innerText = "Greška: Uneli ste neispravan broj kartice (Luhn provera)!";
+        // Čistimo PAN od razmaka pre slanja i validacije
+        const rawPan = document.getElementById('pan').value.replace(/\s+/g, '');
+        const rawCvv = document.getElementById('securityCode').value;
+
+        // Validacija
+        if (!luhnCheck(rawPan)) {
+            statusDiv.innerText = "Invalid Card Number.";
             statusDiv.style.display = "block";
             return;
         }
 
-        const expValue = document.getElementById('expirationDate').value;
-        const expRegex = /^(0[1-9]|1[0-2])\/?([0-9]{2})$/;
-
-        if (!expRegex.test(expValue)) {
-            statusDiv.innerText = "Greška: Neispravan format datuma (MM/YY)!";
-            statusDiv.style.display = "block";
-            return;
-        }
-
-        const today = new Date();
-        const currentMonth = today.getMonth() + 1;
-        const currentYear = parseInt(today.getFullYear().toString().slice(-2));
-
-        const [inputMonth, inputYear] = expValue.split('/').map(num => parseInt(num));
-
-        if (inputYear < currentYear || (inputYear === currentYear && inputMonth < currentMonth)) {
-            statusDiv.innerText = "Greška: Kartica je istekla!";
-            statusDiv.style.display = "block";
-            return;
-        }
-
-        const formData = {
+        // Priprema podataka
+        // NAPOMENA: U pravom sistemu, ovde bi se radila enkripcija javnim ključem (RSA) pre slanja!
+        // Pošto je ovo simulator Banke koji radi preko HTTPS-a, šaljemo JSON.
+        const payload = {
             paymentId: document.getElementById('paymentId').value,
-            pan: panValue,
-            securityCode: document.getElementById('securityCode').value,
-            cardHolderName: document.getElementById('cardHolderName').value,
+            pan: rawPan,
+            securityCode: rawCvv,
+            cardHolderName: document.getElementById('cardHolderName').value.toUpperCase(),
             expirationDate: document.getElementById('expirationDate').value
         };
 
         try {
             btn.disabled = true;
-            btn.innerText = "Obrada...";
+            btn.innerText = "Processing...";
 
             const response = await fetch('/api/bank/pay', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                headers: {
+                    'Content-Type': 'application/json'
+                    // 'X-CSRF-TOKEN': '...' // Ovde bi trebao CSRF token ako ga koristiš
+                },
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
 
-            if (data.redirectUrl) {
-                if (data.status === 'SUCCESS') {
-                    successDiv.innerText = "Plaćanje uspešno! Preusmeravam...";
-                    successDiv.style.display = "block";
-                } else {
-                    statusDiv.innerText = "Plaćanje nije uspelo: " + (data.message || "Nepoznat razlog");
-                    statusDiv.style.display = "block";
-                }
+            if (data.status === 'SUCCESS' || data.redirectUrl) {
+                successDiv.innerText = "Payment Successful! Redirecting...";
+                successDiv.style.display = "block";
+
+                // Brisanje osetljivih podataka iz memorije/forme odmah
+                document.getElementById('paymentForm').reset();
 
                 setTimeout(() => {
                     window.location.href = data.redirectUrl;
                 }, 1500);
-
             } else {
-                throw new Error(data.message || "Došlo je do greške na serveru.");
+                throw new Error(data.message || "Transaction Declined.");
             }
 
         } catch (error) {
-            statusDiv.innerText = "Greška: " + error.message;
+            statusDiv.innerText = "Payment Failed: " + error.message;
             statusDiv.style.display = "block";
             btn.disabled = false;
-            btn.innerText = "PLATI";
+            btn.innerText = "PAY SECURELY";
         }
     });
 </script>

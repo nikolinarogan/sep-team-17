@@ -90,9 +90,6 @@ public class PaymentController {
     /**
      * UNIVERZALNI ENDPOINT ZA POKRETANJE PLAĆANJA.
      */
-    /**
-     * UNIVERZALNI ENDPOINT ZA POKRETANJE PLAĆANJA PREKO MIKROSERVISA.
-     */
     @PostMapping("/checkout/{uuid}/init/{methodName}")
     public ResponseEntity<Map<String, Object>> initiatePayment(
             @PathVariable String uuid,
@@ -109,7 +106,6 @@ public class PaymentController {
                 });
 
         try {
-
             PaymentMethod methodConfig = paymentMethodRepository.findByName(methodName)
                     .orElseThrow(() -> new UnknownPaymentmethodException(methodName));
 

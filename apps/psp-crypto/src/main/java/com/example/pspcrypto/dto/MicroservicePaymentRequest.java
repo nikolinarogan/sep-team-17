@@ -16,7 +16,6 @@ public class MicroservicePaymentRequest {
     private String transactionUuid;  // UUID iz psp-core baze
     private String merchantId;       // Potrebno za dohvatanje konfiguracije
 
-    // Ovi URL-ovi se koriste za redirekciju nakon uspešne/neuspešne uplate
     private String successUrl;
     private String failedUrl;
     private String errorUrl;

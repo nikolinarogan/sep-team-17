@@ -3,6 +3,9 @@ package service;
 import dto.*;
 import model.*;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -184,6 +187,7 @@ public class PaymentService {
 
     public PaymentStatusDTO checkTransactionStatus(String merchantId, String merchantOrderId) {
         auditLogger.logEvent("STATUS_POLLING", "SUCCESS", "Merchant: " + merchantId + " | Order: " + merchantOrderId);
+
         PaymentTransaction tx = transactionRepository.findByMerchantIdAndMerchantOrderId(merchantId, merchantOrderId)
                 .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
 
