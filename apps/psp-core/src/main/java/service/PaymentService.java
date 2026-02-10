@@ -3,9 +3,6 @@ package service;
 import dto.*;
 import model.*;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,10 +11,11 @@ import repository.MerchantRepository;
 import repository.MerchantSubscriptionRepository;
 import repository.PaymentTransactionRepository;
 import repository.PspConfigRepository;
-import tools.AuditLogger; // Dodato
+import tools.AuditLogger;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -30,7 +28,7 @@ public class PaymentService {
     private final PspConfigRepository pspConfigRepository;
     private final PasswordEncoder passwordEncoder;
     private final RestTemplate restTemplate;
-    private final AuditLogger auditLogger; // Dodato
+    private final AuditLogger auditLogger;
 
     public PaymentService(MerchantRepository merchantRepository,
                           PaymentTransactionRepository transactionRepository,
@@ -63,10 +61,39 @@ public class PaymentService {
             throw new RuntimeException("Pogrešna lozinka za prodavca.");
         }
 
-        if (transactionRepository.existsByMerchantIdAndMerchantOrderId(request.getMerchantId(), request.getMerchantOrderId())) {
-            auditLogger.logEvent("DUPLICATE_ORDER", "REJECTED", "Order ID exists: " + request.getMerchantOrderId());
-            throw new RuntimeException("Transakcija sa Order ID: " + request.getMerchantOrderId() + " već postoji!");
+        // --- 1. PROMENA: PAMETNA PROVERA POSTOJEĆE TRANSAKCIJE (IDEMPOTENCIJA) ---
+        Optional<PaymentTransaction> existingTx = transactionRepository
+                .findByMerchantIdAndMerchantOrderId(request.getMerchantId(), request.getMerchantOrderId());
+
+        if (existingTx.isPresent()) {
+            PaymentTransaction tx = existingTx.get();
+
+            // SCENARIO A: Transakcija je već uspešna (korisnik ili WebShop je izgubio info)
+            if (tx.getStatus() == TransactionStatus.SUCCESS) {
+                auditLogger.logEvent("DUPLICATE_PAYMENT_PREVENTED", "SUCCESS",
+                        "Order " + request.getMerchantOrderId() + " already PAID. Redirecting to success.");
+                // Odmah vraćamo uspeh - ne pravimo novu transakciju
+                return new PaymentResponseDTO(tx.getSuccessUrl(), tx.getUuid());
+            }
+
+            // SCENARIO B: Transakcija je započeta, ali nije završena (Pending/Created)
+            if (tx.getStatus() == TransactionStatus.CREATED) {
+                auditLogger.logEvent("TRANSACTION_RESUME", "PENDING",
+                        "Resuming existing transaction: " + tx.getUuid());
+
+                String urlTemplate = pspConfigRepository.findByConfigName("PAYMENT_LINK_TEMPLATE")
+                        .map(PspConfig::getConfigValue)
+                        .orElseThrow(() -> new RuntimeException("Config missing"));
+
+                // Vraćamo isti link da nastavi gde je stao
+                return new PaymentResponseDTO(urlTemplate.replace("{uuid}", tx.getUuid()), tx.getUuid());
+            }
+
+            // SCENARIO C: Stara je propala (FAILED), dozvoljavamo novu (nastavljamo kod ispod)
+            auditLogger.logEvent("RETRYING_FAILED_TRANSACTION", "INFO", "Order: " + request.getMerchantOrderId());
         }
+
+        // --- KREIRANJE NOVE TRANSAKCIJE (Samo ako ne postoji ili je prethodna FAILED) ---
 
         PaymentTransaction tx = new PaymentTransaction();
         tx.setUuid(UUID.randomUUID().toString());
@@ -117,6 +144,13 @@ public class PaymentService {
                 .orElseThrow(() -> new RuntimeException("Transakcija nije pronađena."));
 
         TransactionStatus oldStatus = tx.getStatus();
+
+        // Idempotencija: Ako je već SUCCESS, ne menjaj ništa, samo javi Shopu opet (za svaki slučaj)
+        if (oldStatus == TransactionStatus.SUCCESS) {
+            notifyWebShop(tx, paymentMethod);
+            return tx.getSuccessUrl();
+        }
+
         try {
             tx.setStatus(TransactionStatus.valueOf(callback.getStatus()));
         } catch (Exception e) {
@@ -135,9 +169,20 @@ public class PaymentService {
             notifyWebShop(tx, paymentMethod);
         } catch (Exception e) {
             auditLogger.logEvent("WEBHOOK_NOTIFICATION_FAILED", "ERROR", "UUID: " + tx.getUuid());
+            // Ne bacamo grešku ovde da ne bi prekinuli flow korisniku. Scheduled task će popraviti ovo.
         }
 
         return (tx.getStatus() == TransactionStatus.SUCCESS) ? tx.getSuccessUrl() : tx.getFailedUrl();
+    }
+
+    // --- 2. PROMENA: POSEBNA METODA ZA RETRY (Da bismo je mogli zvati iz Scheduled taska) ---
+    public void retryWebhook(PaymentTransaction tx) {
+        String method = tx.getChosenMethod() != null ? tx.getChosenMethod() : "UNKNOWN";
+        try {
+            notifyWebShop(tx, method);
+        } catch (Exception e) {
+            // Ignorišemo grešku jer je ovo background task
+        }
     }
 
     private void notifyWebShop(PaymentTransaction tx, String paymentMethod) {
@@ -146,18 +191,14 @@ public class PaymentService {
 
         PaymentStatusDTO statusDTO = new PaymentStatusDTO(tx.getMerchantOrderId(), tx.getUuid(), paymentMethod, tx.getStatus().toString(), LocalDateTime.now());
 
-        int maxRetries = 3;
-        for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                auditLogger.logEvent("WEBHOOK_SENDING", "ATTEMPT_" + attempt, "OrderID: " + tx.getMerchantOrderId());
-                restTemplate.postForEntity(targetUrl, statusDTO, Void.class);
-                auditLogger.logEvent("WEBHOOK_SENT", "SUCCESS", "OrderID: " + tx.getMerchantOrderId());
-                return;
-            } catch (Exception e) {
-                if (attempt == maxRetries) {
-                    auditLogger.logSecurityAlert("WEBHOOK_PERMANENT_FAIL", "OrderID: " + tx.getMerchantOrderId());
-                }
-            }
+        // Pokušavamo odmah, ali ako ne uspe, Scheduled task "syncWebhooks" će pokušati kasnije
+        try {
+            auditLogger.logEvent("WEBHOOK_SENDING", "ATTEMPT", "OrderID: " + tx.getMerchantOrderId());
+            restTemplate.postForEntity(targetUrl, statusDTO, Void.class);
+            auditLogger.logEvent("WEBHOOK_SENT", "SUCCESS", "OrderID: " + tx.getMerchantOrderId());
+        } catch (Exception e) {
+            auditLogger.logEvent("WEBHOOK_FAIL_IMMEDIATE", "WARNING", "Will retry later. OrderID: " + tx.getMerchantOrderId());
+            throw e; // Prosleđujemo grešku da bi pozivalac znao
         }
     }
 
@@ -187,16 +228,28 @@ public class PaymentService {
 
     public PaymentStatusDTO checkTransactionStatus(String merchantId, String merchantOrderId) {
         auditLogger.logEvent("STATUS_POLLING", "SUCCESS", "Merchant: " + merchantId + " | Order: " + merchantOrderId);
-
         PaymentTransaction tx = transactionRepository.findByMerchantIdAndMerchantOrderId(merchantId, merchantOrderId)
                 .orElseThrow(() -> new RuntimeException("Transakcija ne postoji"));
 
         return new PaymentStatusDTO(tx.getMerchantOrderId(), tx.getUuid(), tx.getChosenMethod() != null ? tx.getChosenMethod() : "Unknown", tx.getStatus().toString(), LocalDateTime.now());
     }
 
-    @Scheduled(fixedRate = 600000)
+    @Scheduled(fixedRate = 300000) // Svakih 5 minuta
     @Transactional
-    public void expireAbandonedTransactions() {
+    public void syncWebhooksAndExpire() {
+
+        // POKUŠAJ PONOVO DA POŠALJEŠ WEBHOOK ZA "SUCCESS" TRANSAKCIJE
+        // (Uzimamo one koje su se desile u poslednjih 15 min da ne spamujemo stare)
+
+        LocalDateTime fifteenMinutesAgo = LocalDateTime.now().minusMinutes(15);
+        List<PaymentTransaction> recentSuccess = transactionRepository
+                .findByStatusAndCreatedAtAfter(TransactionStatus.SUCCESS, fifteenMinutesAgo);
+        for (PaymentTransaction tx : recentSuccess) {
+            auditLogger.logEvent("WEBHOOK_RETRY_CRON", "START", "Checking WebShop sync for: " + tx.getMerchantOrderId());
+            retryWebhook(tx);
+        }
+
+        // ČIŠĆENJE NAPUŠTENIH
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
         List<PaymentTransaction> abandoned = transactionRepository.findByStatusAndCreatedAtBefore(TransactionStatus.CREATED, thirtyMinutesAgo);
 
@@ -228,5 +281,4 @@ public class PaymentService {
             auditLogger.logEvent("CANCEL_SUCCESS", "SUCCESS", "UUID: " + tx.getUuid());
         }
     }
-
 }

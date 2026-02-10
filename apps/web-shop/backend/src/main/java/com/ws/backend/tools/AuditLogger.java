@@ -1,8 +1,11 @@
 package com.ws.backend.tools;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -12,28 +15,71 @@ public class AuditLogger {
 
     private static final Logger log = LoggerFactory.getLogger(AuditLogger.class);
 
-    public void logEvent(String action, String status, String details) {
+    private String lastHash = "WEBSHOP_INIT_CHAIN_SECURE_2026";
+
+    public synchronized void logEvent(String action, String status, String details) {
         String ipAddress = getClientIp();
-        log.info("[AUDIT] Action: {} | Status: {} | IP: {} | Details: {}",
-                action, status, ipAddress, details);
+        String user = getCurrentUser();
+
+        String logMessage = String.format("User: %s | Action: %s | Status: %s | IP: %s | Details: %s",
+                user, action, status, ipAddress, details);
+
+        String currentHash = HashUtils.calculateSha256(logMessage + lastHash);
+
+        log.info("[AUDIT_WS] {} | HASH: {} | CHAIN_PREV: {}", logMessage, currentHash, lastHash);
+
+        lastHash = currentHash;
     }
 
-    public void logSecurityAlert(String action, String reason) {
+    public synchronized void logSecurityAlert(String action, String reason) {
         String ipAddress = getClientIp();
-        log.warn("[SECURITY_ALERT] Action: {} | Reason: {} | IP: {}",
-                action, reason, ipAddress);
+        String user = getCurrentUser();
+
+        String logMessage = String.format("SECURITY_ALERT | User: %s | Action: %s | Reason: %s | IP: %s",
+                user, action, reason, ipAddress);
+
+        String currentHash = HashUtils.calculateSha256(logMessage + lastHash);
+
+        log.warn("[SECURITY_WS] {} | HASH: {} | CHAIN_PREV: {}", logMessage, currentHash, lastHash);
+        lastHash = currentHash;
+    }
+
+    private String getCurrentUser() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() &&
+                    !"anonymousUser".equals(auth.getPrincipal())) {
+                return "AUTH:" + auth.getName();
+            }
+
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpSession session = attributes.getRequest().getSession(false);
+                if (session != null) {
+                    return "GUEST_SESSION:" + session.getId().substring(0, 8);
+                }
+            }
+        } catch (Exception e) {
+            return "SYSTEM_INTERNAL";
+        }
+
+        return "GUEST_UNKNOWN";
     }
 
     private String getClientIp() {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attributes != null) {
-            HttpServletRequest request = attributes.getRequest();
-            String xForwardedFor = request.getHeader("X-Forwarded-For");
-            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-                return xForwardedFor.split(",")[0];
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String xForwardedFor = request.getHeader("X-Forwarded-For");
+                if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                    return xForwardedFor.split(",")[0];
+                }
+                return request.getRemoteAddr();
             }
-            return request.getRemoteAddr();
+        } catch (Exception e) {
+            return "SYSTEM"; // За @Scheduled taskove
         }
-        return "SYSTEM"; // za @Scheduled taskove koji nemaju HTTP zahtev
+        return "SYSTEM";
     }
 }

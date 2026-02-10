@@ -27,4 +27,6 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             TransactionStatus status,
             LocalDateTime before
     );
+
+    List<PaymentTransaction> findByStatusAndCreatedAtAfter(TransactionStatus status, LocalDateTime timestamp);
 }
