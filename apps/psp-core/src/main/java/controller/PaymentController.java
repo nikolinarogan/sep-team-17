@@ -90,7 +90,7 @@ public class PaymentController {
     /**
      * UNIVERZALNI ENDPOINT ZA POKRETANJE PLAĆANJA.
      */
-    @PostMapping("/checkout/{uuid}/init/{methodName}")
+    /*@PostMapping("/checkout/{uuid}/init/{methodName}")
     public ResponseEntity<Map<String, Object>> initiatePayment(
             @PathVariable String uuid,
             @PathVariable String methodName) {
@@ -134,7 +134,53 @@ public class PaymentController {
                     .body(Map.of("error", "Servis trenutno nije dostupan: " + e.getMessage(), "retryable", true));
         }
     }
+*/
+    @PostMapping("/checkout/{uuid}/init/{methodName}")
+    public ResponseEntity<Map<String, Object>> initiatePayment(
+            @PathVariable String uuid,
+            @PathVariable String methodName) {
 
+        // PCI DSS: Logujemo odabir metode (Kupac bira, IP adresa identifikuje)
+        auditLogger.logEvent("PAYMENT_METHOD_SELECTION", "START",
+                "UUID: " + uuid + " | Method: " + methodName);
+
+        PaymentTransaction tx = paymentTransactionRepository.findByUuid(uuid)
+                .orElseThrow(() -> {
+                    auditLogger.logSecurityAlert("INIT_FAILED_INVALID_UUID", "UUID: " + uuid);
+                    return new RuntimeException("Transakcija nije pronađena: " + uuid);
+                });
+
+        try {
+
+            PaymentMethod methodConfig = paymentMethodRepository.findByName(methodName)
+                    .orElseThrow(() -> new UnknownPaymentmethodException(methodName));
+
+            PaymentInitResult result;
+
+            if (methodConfig.getServiceName() != null && !methodConfig.getServiceName().isEmpty()) {
+                result = genericPaymentService.initiate(tx, methodName);
+            } else {
+                PaymentProvider provider = paymentRegistry.get(methodName);
+                result = provider.initiate(tx);
+            }
+
+            auditLogger.logEvent("PAYMENT_METHOD_INIT_SUCCESS", "SUCCESS",
+                    "UUID: " + uuid + " | Redirecting to provider.");
+
+            Map<String, Object> response = new HashMap<>();
+            if (result.getRedirectUrl() != null) {
+                response.put("paymentUrl", result.getRedirectUrl());
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            auditLogger.logEvent("PAYMENT_METHOD_INIT_FAILED", "ERROR",
+                    "UUID: " + uuid + " | Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "Servis trenutno nije dostupan: " + e.getMessage()));
+        }
+    }
     /**
      * UNIVERZALNI CALLBACK ZA MIKROSERVISE
      */

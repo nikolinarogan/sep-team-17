@@ -4,6 +4,8 @@ import com.bank.dto.*;
 import com.bank.model.*;
 import com.bank.repository.*;
 import com.bank.tools.AuditLogger;
+import com.bank.tools.CryptoUtil; // ✅ Dodato
+import org.springframework.security.crypto.password.PasswordEncoder; // ✅ Dodato
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -23,18 +25,26 @@ public class BankService {
     private final WebClient webClient;
     private final AuditLogger auditLogger;
 
+    // ✅ NOVI ALATI ZA ZAŠTITU
+    private final CryptoUtil cryptoUtil;
+    private final PasswordEncoder passwordEncoder;
+
     public BankService(AccountRepository accountRepository,
                        CardRepository cardRepository,
                        MerchantRepository merchantRepository,
                        TransactionRepository transactionRepository,
                        WebClient webClient,
-                       AuditLogger auditLogger) {
+                       AuditLogger auditLogger,
+                       CryptoUtil cryptoUtil,
+                       PasswordEncoder passwordEncoder) {
         this.accountRepository = accountRepository;
         this.cardRepository = cardRepository;
         this.merchantRepository = merchantRepository;
         this.transactionRepository = transactionRepository;
         this.webClient = webClient;
         this.auditLogger = auditLogger;
+        this.cryptoUtil = cryptoUtil;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // 1. METODA ZA PSP: Kreiranje URL-a za plaćanje
@@ -47,7 +57,8 @@ public class BankService {
                     return new RuntimeException("Prodavac ne postoji u banci!");
                 });
 
-        if (!merchant.getMerchantPassword().equals(request.getMerchantPassword())) {
+        // 🔒 IZMENA: Provera heširane lozinke
+        if (!request.getMerchantPassword().equals(merchant.getMerchantPassword())) {
             auditLogger.logSecurityAlert("MERCHANT_AUTH_FAILED", "ID: " + request.getMerchantId());
             throw new RuntimeException("Pogrešna lozinka prodavca!");
         }
@@ -70,8 +81,6 @@ public class BankService {
         tx.setTimestamp(LocalDateTime.now());
         tx.setStatus(TransactionStatus.CREATED);
         tx.setStan(request.getStan());
-
-        // DINAMIČKA IZMENA: Čuvamo URL specifične PSP instance
         tx.setCallbackUrl(request.getCallbackUrl());
 
         String internalPaymentId = UUID.randomUUID().toString();
@@ -103,6 +112,7 @@ public class BankService {
             throw new RuntimeException("Transakcija je već obrađena!");
         }
 
+        // Luhn provera radi nad sirovim brojem koji stiže sa Frontenda (to je OK, ne čuvamo ga)
         if (!luhnCheck(form.getPan())) {
             tx.setStatus(TransactionStatus.FAILED);
             transactionRepository.save(tx);
@@ -110,13 +120,17 @@ public class BankService {
             throw new RuntimeException("Neispravan broj kartice (Luhn check failed)!");
         }
 
-        Card card = cardRepository.findByPan(form.getPan())
+        // 🔒 IZMENA: Pretraga po HASH-u (jer je PAN u bazi enkriptovan i nepretraživ)
+        String panHash = cryptoUtil.hashForSearch(form.getPan());
+
+        Card card = cardRepository.findByPanHash(panHash) // <--- Moraš dodati ovu metodu u CardRepository
                 .orElseThrow(() -> {
-                    auditLogger.logSecurityAlert("CARD_NOT_FOUND", "PAN check");
+                    auditLogger.logSecurityAlert("CARD_NOT_FOUND", "Hash check failed");
                     return new RuntimeException("Kartica ne postoji u banci!");
                 });
 
-        if (!card.getSecurityCode().equals(form.getSecurityCode())) {
+        // 🔒 IZMENA: Provera heširanog CVV koda
+        if (!passwordEncoder.matches(form.getSecurityCode(), card.getCvvHash())) {
             auditLogger.logSecurityAlert("CVV_INVALID", "PaymentID: " + tx.getPaymentId());
             throw new RuntimeException("Pogrešan CVV kod!");
         }
@@ -156,7 +170,6 @@ public class BankService {
         transactionRepository.save(tx);
         auditLogger.logEvent("BANK_TX_SUCCESS", "SUCCESS", "PaymentID: " + tx.getPaymentId());
 
-        // DINAMIČKI CALLBACK: Koristimo sačuvani URL
         sendCallbackToPsp(tx);
 
         return tx.getCallbackUrl() + "?paymentId=" + tx.getPspTransactionId() + "&status=SUCCESS";
@@ -218,7 +231,8 @@ public class BankService {
         Account payer = accountRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Korisnik ne postoji!"));
 
-        if (payer.getPin() == null || !payer.getPin().equals(request.getPin())) {
+        // 🔒 IZMENA: Provera heširanog PIN-a
+        if (payer.getPin() == null || !passwordEncoder.matches(request.getPin(), payer.getPin())) {
             auditLogger.logSecurityAlert("QR_PIN_INVALID", "User: " + request.getEmail());
             throw new RuntimeException("Pogrešan PIN!");
         }

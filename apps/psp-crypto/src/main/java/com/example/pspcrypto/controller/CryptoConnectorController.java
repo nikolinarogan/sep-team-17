@@ -21,9 +21,9 @@ public class CryptoConnectorController {
         this.auditLogger = auditLogger;
     }
 
-    @PostMapping("/init")
+
+   @PostMapping("/init")
     public ResponseEntity<MicroservicePaymentResponse> init(@RequestBody MicroservicePaymentRequest req) {
-        // Logujemo dolazni zahtev
         auditLogger.logEvent("CRYPTO_INIT_REQUEST", "START",
                 "TransactionUUID: " + req.getTransactionUuid());
 
@@ -31,16 +31,14 @@ public class CryptoConnectorController {
         return ResponseEntity.ok(response);
     }
 
-    // Endpoint koji će Frontend (ili psp-core) zvati da proveri da li je legla uplata
-    @GetMapping("/check-status/{uuid}")
-    public ResponseEntity<Boolean> checkStatus(@PathVariable String uuid) {
-        boolean isPaid = logicService.checkPaymentStatus(uuid);
-        return ResponseEntity.ok(isPaid);
+    @GetMapping("/check-status/{token}")
+    public ResponseEntity<Boolean> checkStatus(@PathVariable String token) {
+        // Token sadrži adresu i iznos
+        return ResponseEntity.ok(logicService.checkPaymentStatus(token));
     }
 
-    @GetMapping("/details/{uuid}")
-    public ResponseEntity<Map<String, Object>> getTransactionDetails(@PathVariable String uuid) {
-        // Poziva servis da izvuče podatke iz keša (mape)
-        return ResponseEntity.ok(logicService.getDetailsFromCache(uuid));
+    @GetMapping("/details/{token}")
+    public ResponseEntity<Map<String, Object>> getDetails(@PathVariable String token) {
+        return ResponseEntity.ok(logicService.getDetailsFromToken(token));
     }
 }
