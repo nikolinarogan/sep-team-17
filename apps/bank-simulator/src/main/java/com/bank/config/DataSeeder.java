@@ -6,6 +6,7 @@ import com.bank.model.Merchant;
 import com.bank.repository.AccountRepository;
 import com.bank.repository.CardRepository;
 import com.bank.repository.MerchantRepository;
+import com.bank.service.BankService;
 import com.bank.tools.CryptoUtil;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,6 +17,7 @@ import java.math.BigDecimal;
 @Component
 public class DataSeeder implements CommandLineRunner {
 
+    private final BankService bankService;
     private final AccountRepository accountRepository;
     private final CardRepository cardRepository;
     private final MerchantRepository merchantRepository;
@@ -26,12 +28,13 @@ public class DataSeeder implements CommandLineRunner {
                       CardRepository cardRepository,
                       MerchantRepository merchantRepository,
                       CryptoUtil cryptoUtil,
-                      PasswordEncoder passwordEncoder) {
+                      PasswordEncoder passwordEncoder, BankService bankService) {
         this.accountRepository = accountRepository;
         this.cardRepository = cardRepository;
         this.merchantRepository = merchantRepository;
         this.cryptoUtil = cryptoUtil;
         this.passwordEncoder = passwordEncoder;
+        this.bankService = bankService;
     }
 
     @Override
@@ -76,23 +79,30 @@ public class DataSeeder implements CommandLineRunner {
 
         accountRepository.save(buyerAccount);
 
-        // 4. KARTICA KUPCA
         String rawPan = "4111111111111111";
-        String rawCvv = "123";
+        String expDate = "12/30";
+
+        String validTestCvv = bankService.generateCvv(rawPan, expDate);
 
         Card card = new Card();
-        card.setPan(rawPan); // Enkripcija (automatska)
-        card.setPanMasked(cryptoUtil.maskPan(rawPan)); // Maskiranje **** 5678
-        card.setPanHash(cryptoUtil.hashForSearch(rawPan)); // Hash za pretragu
-        card.setCvvHash(passwordEncoder.encode(rawCvv)); // Hashovan CVV
+        card.setPan(rawPan);
+        card.setPanMasked(cryptoUtil.maskPan(rawPan));
+        card.setPanHash(cryptoUtil.hashForSearch(rawPan));
 
         card.setCardHolderName("PERA PERIC");
-        card.setExpirationDate("12/30");
+        card.setExpirationDate(expDate);
         card.setAccount(buyerAccount);
         cardRepository.save(card);
 
-        System.out.println("--- PODACI UPISANI ---");
-        System.out.println("Shop ACC: 310123456789121186 | PIN: 1111 (sada radi!)");
-        System.out.println("Pera ACC: 222-222222-22      | PIN: 2222 (sada radi!)");
+        System.out.println("--------------------------------------------------");
+        System.out.println("✅ PODACI UPISANI USPEŠNO");
+        System.out.println("Shop: 310123456789121186 | PIN: 1111");
+        System.out.println("Kupac: 222-222222-22     | PIN: 2222");
+        System.out.println("--------------------------------------------------");
+        System.out.println("💳 TEST KARTICA (Kopiraj ovo za Frontend):");
+        System.out.println("PAN: " + rawPan);
+        System.out.println("EXP: " + expDate);
+        System.out.println("👉 CVV: " + validTestCvv + "  <--- OVO KORISTI PRI PLAĆANJU!");
+        System.out.println("--------------------------------------------------");
     }
 }
