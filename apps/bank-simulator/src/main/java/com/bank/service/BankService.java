@@ -4,8 +4,9 @@ import com.bank.dto.*;
 import com.bank.model.*;
 import com.bank.repository.*;
 import com.bank.tools.AuditLogger;
-import com.bank.tools.CryptoUtil; // ✅ Dodato
-import org.springframework.security.crypto.password.PasswordEncoder; // ✅ Dodato
+import com.bank.tools.CryptoUtil;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -18,6 +19,9 @@ import java.util.UUID;
 @Service
 public class BankService {
 
+    @Value("${security.encryption.key}")
+    private String encryptionKey;
+
     private final AccountRepository accountRepository;
     private final CardRepository cardRepository;
     private final MerchantRepository merchantRepository;
@@ -25,7 +29,6 @@ public class BankService {
     private final WebClient webClient;
     private final AuditLogger auditLogger;
 
-    // ✅ NOVI ALATI ZA ZAŠTITU
     private final CryptoUtil cryptoUtil;
     private final PasswordEncoder passwordEncoder;
 
@@ -123,15 +126,16 @@ public class BankService {
         // 🔒 IZMENA: Pretraga po HASH-u (jer je PAN u bazi enkriptovan i nepretraživ)
         String panHash = cryptoUtil.hashForSearch(form.getPan());
 
-        Card card = cardRepository.findByPanHash(panHash) // <--- Moraš dodati ovu metodu u CardRepository
+        Card card = cardRepository.findByPanHash(panHash)
                 .orElseThrow(() -> {
                     auditLogger.logSecurityAlert("CARD_NOT_FOUND", "Hash check failed");
                     return new RuntimeException("Kartica ne postoji u banci!");
                 });
 
-        // 🔒 IZMENA: Provera heširanog CVV koda
-        if (!passwordEncoder.matches(form.getSecurityCode(), card.getCvvHash())) {
-            auditLogger.logSecurityAlert("CVV_INVALID", "PaymentID: " + tx.getPaymentId());
+        String expectedCvv = generateCvv(form.getPan(), form.getExpirationDate());
+
+        if (!expectedCvv.equals(form.getSecurityCode())) {
+            auditLogger.logSecurityAlert("CVV_INVALID", "PaymentID: " + form.getPaymentId());
             throw new RuntimeException("Pogrešan CVV kod!");
         }
 
@@ -262,5 +266,29 @@ public class BankService {
         sendCallbackToPsp(tx);
 
         return tx.getCallbackUrl() + "?paymentId=" + tx.getPspTransactionId() + "&status=SUCCESS";
+    }
+
+    public String generateCvv(String pan, String expiryDate) {
+        try {
+            // Algoritam: HMAC-SHA256(PAN + Expiry + TajniKljuc)
+            String dataToHash = pan + expiryDate;
+
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKeySpec =
+                    new javax.crypto.spec.SecretKeySpec(encryptionKey.getBytes(), "HmacSHA256");
+            mac.init(secretKeySpec);
+
+            byte[] hashBytes = mac.doFinal(dataToHash.getBytes());
+
+            // Pretvaramo hash u pozitivan veliki broj
+            java.math.BigInteger hashNum = new java.math.BigInteger(1, hashBytes);
+
+            // Uzimamo poslednje 3 cifre (modulo 1000)
+            // Rezultat će uvek biti broj između 000 i 999
+            return String.format("%03d", hashNum.mod(new java.math.BigInteger("1000")));
+
+        } catch (Exception e) {
+            throw new RuntimeException("Interna greška pri validaciji kartice");
+        }
     }
 }
